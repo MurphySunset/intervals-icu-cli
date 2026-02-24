@@ -1,7 +1,9 @@
 # Integration Plan: Intervals.icu CLI
 
 ## Current State
-- Fresh project with no source code
+- **Phase 1 COMPLETE**: Project infrastructure setup
+- package.json, tsconfig.json, bin wrapper created
+- Directory structure: src/, src/api/, src/commands/, tests/, tests/fixtures/
 - README.md and AGENTS.md exist
 - .specify directory with constitution
 - .env file configured
@@ -23,10 +25,10 @@ Replicate wordpress-bridge pattern adapted for intervals.icu API:
 ## Phase 1: Foundation (Infrastructure)
 
 ### 1.1 Project Setup
-- [ ] Create `package.json` (commander, dotenv, typescript, @types/bun)
-- [ ] Create `tsconfig.json` (ESNext, strict mode)
-- [ ] Update `.gitignore` for node_modules, dist
-- [ ] Create `bin/intervals-icu` binary wrapper
+- [x] Create `package.json` (commander, dotenv, typescript, @types/bun)
+- [x] Create `tsconfig.json` (ESNext, strict mode)
+- [x] Update `.gitignore` for node_modules, dist
+- [x] Create `bin/intervals-icu` binary wrapper
 
 ### 1.2 Directory Structure
 ```
