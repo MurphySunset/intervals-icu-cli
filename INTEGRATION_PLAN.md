@@ -1,6 +1,7 @@
 # Integration Plan: Intervals.icu CLI
 
 ## Current State
+- **Phase 3 COMPLETE**: API Client
 - **Phase 2 COMPLETE**: Configuration module
 - **Phase 1 COMPLETE**: Project infrastructure setup
 - package.json, tsconfig.json, bin wrapper created
@@ -107,7 +108,7 @@ interface Config {
 
 ## Phase 3: API Client
 
-### 3.1 `src/api/client.ts`
+### 3.1 `src/api/client.ts` - [x] COMPLETE
 
 **ApiClient class**:
 - Basic auth: `Authorization: Basic base64(API_KEY:API_KEY)`
@@ -127,6 +128,36 @@ interface ApiResponse<T> {
   meta: { status: number; duration: string; total?: number; pages?: number };
 }
 ```
+
+**Exit codes implemented**:
+- `0`: Success
+- `1`: API error / generic failure
+- `3`: Timeout / network error
+- `10`: `--force` required for write operation
+
+**Test coverage**: 33 tests, 100% pass rate
+
+### 3.2 `tests/client.test.ts` - [x] COMPLETE
+
+**Test coverage**:
+- Auth header format (Basic auth with API_KEY prefix)
+- Successful GET requests
+- Dry-run mode interception
+- Force flag enforcement (POST/PUT/PATCH/DELETE) - parameterized
+- 429 retry logic with exponential backoff
+- Timeout handling with exit code 3
+- Error response preservation
+- HTML error response handling
+- Network error handling
+- Connection: close header
+- Query parameter serialization
+- Array parameter handling
+- Body handling for POST/PUT/PATCH
+- Custom headers passthrough
+- Response meta fields (total, pages)
+
+**Total tests**: 33 pass, 0 fail
+**Code coverage**: 100% lines, 100% functions
 
 ---
 
@@ -326,7 +357,7 @@ program.version("1.0.0")
 ## Implementation Order
 
 1. [x] **Phase 1-2**: Foundation & config
-2. **Phase 3**: API client
+2. [x] **Phase 3**: API client
 3. **Phase 4**: Schema sync (fetch OpenAPI spec)
 4. **Phase 5**: Dynamic command mapping
 5. **Phase 6**: Entry point & static commands
