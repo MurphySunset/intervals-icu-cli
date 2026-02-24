@@ -32,7 +32,7 @@ Every write operation (create, update, delete) MUST require explicit --force con
 - **Testing**: Bun test with >80% coverage required
 - **Version Bump**: Update BOTH package.json and version in entry point
 - **Build**: TypeScript compilation before publish
-- **Dev Environment**: Use staging/.env for development (never production directly)
+- **Dev Environment**: Use .env for development
 
 ## Governance
 
