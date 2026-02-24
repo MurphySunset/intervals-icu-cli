@@ -8,7 +8,7 @@
   },
   "type": "module",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp -r src/data dist/",
     "prepublishOnly": "npm run build",
     "test": "bun test",
     "start": "bun run src/index.ts"
