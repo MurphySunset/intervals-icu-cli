@@ -276,15 +276,16 @@ export function getCommandPath(pathInfo: PathInfo, action: string): string[] {
 function getOrCreateCommand(
   program: Command,
   cmdPath: string[],
-  cache: Map<string, Command>
+  cache: Map<string, Command>,
+  parentKey: string = ""
 ): Command {
   if (cmdPath.length === 0) {
     return program;
   }
-  
+
   const [current, ...rest] = cmdPath;
-  const currentCacheKey = cmdPath.slice(0, 1).join(":");
-  
+  const currentCacheKey = parentKey ? `${parentKey}:${current}` : current;
+
   let currentCmd: Command;
   if (cache.has(currentCacheKey)) {
     currentCmd = cache.get(currentCacheKey)!;
@@ -297,8 +298,8 @@ function getOrCreateCommand(
     }
     cache.set(currentCacheKey, currentCmd);
   }
-  
-  return getOrCreateCommand(currentCmd, rest, cache);
+
+  return getOrCreateCommand(currentCmd, rest, cache, currentCacheKey);
 }
 
 function registerCommand(
