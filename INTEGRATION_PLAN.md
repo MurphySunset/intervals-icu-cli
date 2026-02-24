@@ -211,47 +211,125 @@ interface OpenAPISpec {
 
 ## Phase 5: Dynamic Command Mapping
 
-### 5.1 `src/api/mapping.ts`
+**Philosophy**: 1:1 mapping with API. No convenience layers, no include flags, no defaults beyond what API provides.
 
-**`mapRoutesToCommands(program, schemaIndex)`**:
+### 5a: Core Utilities (`src/api/mapping.ts`)
 
-**HTTP → Command mapping**:
-| HTTP | Single/Collection | Command |
-|------|-------------------|---------|
-| GET  | Collection        | `list`  |
-| GET  | Single            | `get`   |
-| POST | Collection        | `create`|
-| PUT/PATCH | Single        | `update`|
-| DELETE| Single           | `delete`|
+Pure functions with no Commander dependency.
 
-**Resource detection**:
-- Parse path: `/api/v1/athlete/{id}/activities` → namespace: `athlete`, resource: `activities`
-- Detect single vs collection (presence of `{id}`)
+| Function | Purpose |
+|----------|---------|
+| `parsePath(path)` | Extract `{namespace, resources, params}` from OpenAPI path |
+| `detectAction(method, params)` | HTTP method + has params → `get/list/create/update/delete` |
+| `buildPath(template, args)` | Replace `{param}` placeholders with values |
+| `pickFields(obj, fields[])` | Filter output fields (supports dot notation) |
+
+**Path parsing examples**:
+```
+/api/v1/athlete/{id}                    → {namespace: "athlete", resources: [], params: ["id"]}
+/api/v1/athlete/{id}/activities         → {namespace: "athlete", resources: ["activities"], params: ["id"]}
+/api/v1/athlete/{id}/workouts/{workoutId} → {namespace: "athlete", resources: ["workouts"], params: ["id", "workoutId"]}
+```
+
+**HTTP → Action mapping**:
+| HTTP | Has path params | Action |
+|------|-----------------|--------|
+| GET | Yes | `get` |
+| GET | No | `list` |
+| POST | No | `create` |
+| PUT/PATCH | Yes | `update` |
+| DELETE | Yes | `delete` |
+
+**Test coverage**: Path parsing, action detection, field picking, path building.
+
+---
+
+### 5b: Command Registration (`src/api/mapping.ts`)
+
+Commander.js hierarchy creation.
+
+| Function | Purpose |
+|----------|---------|
+| `mapRoutesToCommands(program, schemaIndex, spec)` | Main entry - iterates paths, creates command hierarchy |
+| `registerCommand(program, pathInfo, method, op)` | Register single command with positional args and flags |
+
+**Command structure**:
+```
+program
+├── athlete
+│   ├── get <id>
+│   ├── update <id>
+│   ├── activities
+│   │   ├── list <id> --oldest <date> [--newest] [--limit]
+│   │   └── create <id> --file <path>
+│   ├── events
+│   │   ├── list <id> --oldest <date>
+│   │   └── create <id>
+│   ├── wellness
+│   │   ├── get <id> <date>
+│   │   └── update <id> <date>
+│   └── workouts
+│       ├── list <id>
+│       ├── get <id> <workoutId>
+│       └── update <id> <workoutId>
+├── activity
+│   ├── get <id>
+│   ├── update <id>
+│   ├── delete <id>
+│   ├── streams <id>
+│   └── intervals <id>
+└── chats
+    ├── get <id>
+    └── messages
+        └── list <id> [--before-id] [--limit]
+```
+
+**Positional args**: Use OpenAPI param names as-is (e.g., `<id>`, `<workoutId>`, `<athleteId>`)
 
 **Common flags**:
 - `--fields <fields>` - Limit output fields
-- `--format <json|ids|count>` - Output format
-- `--all` - Auto-pagination for list (if API supports)
-- `--full` - Full response for get/delete
+- `--format <json|ids|count>` - Output format (default: json)
+- `--full` - Full response for update/delete
 - `--file <path>` - JSON payload from file
-- `--force` - Required for writes (global)
 
-**Activity-specific flags** (only on `activity get`):
-- `--include-streams` - Fetch `/activity/{id}/streams`
-- `--include-intervals` - Fetch `/activity/{id}/intervals`
-- `--include-best-efforts` - Fetch `/activity/{id}/best-efforts`
-- `--include-curves` - Fetch power/pace/HR curves
-- `--include-histograms` - Fetch distribution histograms
-- `--include-models` - Fetch HR load, power spike models
-- `--include-segments` - Fetch course segments
-- `--include-map` - Fetch activity map
+**Test coverage**: Command hierarchy, argument registration, option registration.
+
+---
+
+### 5c: Command Execution (`src/api/mapping.ts`)
+
+Action handler + output processing + API calls.
+
+| Function | Purpose |
+|----------|---------|
+| `createActionHandler(pathInfo, method, op)` | Returns async handler for command |
+| `processOutput(data, options, action)` | Apply `--fields`, `--format`, minimal output |
+| `extractQueryParams(options, op)` | Get query params from OpenAPI spec |
 
 **Output processing**:
-- Minimal by default (id + modified fields)
-- `--fields` uses `pickFields()` helper
-- `--format ids` returns array of IDs
-- `--format count` returns number
-- Always JSON output for agents
+- **Minimal** (default for `update`/`delete`): `id` + request fields only
+- **`--fields`**: Filter to specified fields
+- **`--format ids`**: Return `[id1, id2, ...]`
+- **`--format count`**: Return count
+- **`--full`**: Return complete API response
+
+**Pagination**: 
+- `--oldest` is **required** for list commands (API requirement)
+- `--newest`, `--limit` are optional
+- No auto-pagination (KISS)
+
+**Test coverage**: Full execution flow, output formats, error handling, query param extraction.
+
+---
+
+### Endpoint Policy
+
+**Include ALL endpoints** (1:1 with API):
+- `{ext}` paths → registered as-is
+- Download paths → registered as-is  
+- Bulk paths → registered as-is
+
+User discovers via `--help` and subcommand exploration.
 
 ---
 
@@ -299,43 +377,49 @@ Interactive config setup:
 - `config.test.ts` - Config loading, priority order
 - `client.test.ts` - API client, auth, retries
 - `schema.test.ts` - Schema sync, index generation
-- `mapping.test.ts` - Command generation, flag handling
+- `mapping.test.ts` - Core utilities (5a), command registration (5b), execution (5c)
 
 ---
 
 ## Phase 8: Documentation (Complete)
 
-### MVP Commands (First Iteration)
+### MVP Commands (Examples - 1:1 with API)
 
 **1. Athlete commands**:
-- `athlete get <id>` - Get athlete profile/settings
-  - Output: name, weight, FTP, zones, settings
+- `athlete get <id>` - Get athlete profile
+- `athlete update <id> --file <path>` - Update athlete
 
 **2. Activity commands**:
-- `activities list --athlete-id <id> --oldest <date>` - List activities
-  - Output: id, date, type, duration, distance, TSS
-  - Flags: `--fields`, `--format`, `--limit`, `--route-id`, `--newest`
+- `athlete activities list <id> --oldest <date>` - List activities (required: oldest)
+  - Optional: `--newest`, `--limit`, `--route-id`, `--fields`, `--format`
 - `activity get <id>` - Get single activity
-  - Output: basic info
-  - Flags: `--include-streams`, `--include-curves`, etc.
+- `activity update <id> --file <path>` - Update activity
+- `activity delete <id>` - Delete activity
+- `activity streams <id>` - Get activity streams (separate endpoint)
+- `activity intervals <id>` - Get activity intervals (separate endpoint)
 
 **3. Event commands**:
-- `events list --athlete-id <id>` - List scheduled events
-  - Output: id, date, name, type, status
-- `event get <id>` - Get event details
-  - Output: event info with workout details
+- `athlete events list <id> --oldest <date>` - List events
+- `athlete events create <id> --file <path>` - Create event
+- `athlete events get <id> <eventId>` - Get event details
+- `athlete events update <id> <eventId> --file <path>` - Update event
 
-### Analytics Commands (General - Future)
+**4. Wellness commands**:
+- `athlete wellness get <id> <date>` - Get wellness for date
+- `athlete wellness update <id> <date> --file <path>` - Update wellness
+
+### Analytics Commands (Examples - 1:1 with API)
 
 **1. Wellness**:
-- `athlete wellness <id>` - Daily wellness data
-- `athlete wellness-bulk <id>` - Bulk wellness updates
+- `athlete wellness-bulk update <id> --file <path>` - Bulk wellness updates
 
 **2. Performance**:
-- `athlete curves <id>` - Long-term performance curves
-- `athlete summary <id>` - Overall athlete summary
-- `athlete mmp-model <id>` - Mean Max Power model
-- `athlete power-hr-curve <id>` - Power vs HR relationship
+- `athlete power-curves get <id>` - Power curves
+- `athlete pace-curves get <id>` - Pace curves  
+- `athlete hr-curves get <id>` - HR curves
+- `athlete mmp-model get <id>` - Mean Max Power model
+- `athlete power-hr-curve get <id>` - Power vs HR relationship
+- `athlete summary get <id>` - Athlete summary
 
 ---
 
@@ -356,7 +440,7 @@ Interactive config setup:
 - `limit` - Max results count
 - No X-Total headers like WP
 
-**Implication**: Auto-pagination logic needs adjustment - use `limit` parameter instead of page-based pagination.
+**Decision**: No auto-pagination. User must specify `--oldest` (required by API). KISS principle.
 
 ### 4. Version Handling
 **Clarification**: `.version()` is Commander.js method for CLI version:
@@ -375,6 +459,13 @@ program.version("1.0.0")
 - `4`: Missing configuration
 - `10`: --force required for write operation
 
+### 6. Command Mapping Philosophy
+**Decision**: 1:1 mapping with API. No convenience layers.
+- No `--include-*` flags for activity sub-resources → use separate commands
+- No auto-pagination → user specifies `--oldest` (required by API)
+- No parameter name transformation → use OpenAPI param names as-is
+- All endpoints registered → user discovers via `--help`
+
 ---
 
 ## Implementation Order
@@ -382,9 +473,11 @@ program.version("1.0.0")
 1. [x] **Phase 1-2**: Foundation & config
 2. [x] **Phase 3**: API client
 3. [x] **Phase 4**: Schema sync (fetch OpenAPI spec)
-4. **Phase 5**: Dynamic command mapping
-5. **Phase 6**: Entry point & static commands
-6. **Phase 7**: Tests (ongoing)
+4. **Phase 5a**: Core utilities (parsePath, detectAction, pickFields, buildPath)
+5. **Phase 5b**: Command registration (mapRoutesToCommands hierarchy)
+6. **Phase 5c**: Command execution (action handlers, output processing)
+7. **Phase 6**: Entry point & static commands
+8. **Phase 7**: Tests (ongoing)
 
 Note: Phase 8 (Documentation) complete - AGENTS.md and README.md finalized with CLI Guidelines compliance.
 
@@ -392,11 +485,9 @@ Note: Phase 8 (Documentation) complete - AGENTS.md and README.md finalized with 
 
 ## Open Questions (Future)
 
-1. **Wellness commands**: Should wellness accept a date parameter or list all dates by default? (to be addressed when implemented)
+1. **Wellness bulk format**: What's the expected JSON structure for `--file` input on bulk endpoints? (check API docs when implemented)
 
-2. **Auto-pagination**: Does intervals.icu support cursor-based pagination for large datasets? (check docs during implementation)
-
-3. **Activity flags**: Should we add shorthand flags like `--all-analytics` for convenience? (defer to user feedback)
+2. **Download endpoints**: How to handle binary responses (GPX, FIT files)? Stream to file or stdout?
 
 ---
 
