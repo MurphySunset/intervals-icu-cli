@@ -132,6 +132,21 @@ Rule: Prefer mocking errors directly over `vi.useFakeTimers()` for async code.
 Context: Fake timers with async operations cause hangs/timeout issues in bun test runner.
 Example: For timeout test, mock fetch to reject with AbortError directly.
 
+### Architecture - OpenAPI Index Format
+Rule: Schema index is `Record<path, method[]>` extracted from `spec.paths[path].{get,post,put,patch,delete}`.
+Context: Intervals.icu uses OpenAPI 3.0.1, not WordPress REST API. Methods are keys under each path, not a `methods` array.
+Example: `spec.paths["/api/v1/athlete/{id}"].get` exists → index entry `["GET"]`
+
+### Build - Bundled Assets
+Rule: Static assets in `src/data/` must be copied to `dist/data/` during build.
+Context: TypeScript compiler only processes .ts files; JSON assets need explicit copy step. Build output is `dist/` not `dist/src/`.
+Example: Build script: `tsc && cp -r src/data dist/`
+
+### Build - FileSystem Type Casting
+Rule: When assigning Node's `fs` module to a custom `FileSystem` interface, use `as unknown as FileSystem`.
+Context: Node's fs signatures are more complex than simplified test interfaces. Direct assignment causes TS2322 errors.
+Example: `let fileSystem: FileSystem = fs as unknown as FileSystem;`
+
 ## Notes
 - **API Docs**: https://intervals.icu/api-docs.html
 - **OpenAPI Spec**: https://intervals.icu/api/v1/docs

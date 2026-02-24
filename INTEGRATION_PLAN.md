@@ -1,14 +1,16 @@
 # Integration Plan: Intervals.icu CLI
 
 ## Current State
+- **Phase 4 COMPLETE**: Schema Sync (OpenAPI 3.0.1)
 - **Phase 3 COMPLETE**: API Client
 - **Phase 2 COMPLETE**: Configuration module
 - **Phase 1 COMPLETE**: Project infrastructure setup
 - package.json, tsconfig.json, bin wrapper created
-- Directory structure: src/, src/api/, src/commands/, tests/, tests/fixtures/
+- Directory structure: src/, src/api/, src/commands/, src/data/, tests/, tests/fixtures/
 - README.md and AGENTS.md exist
 - .specify directory with constitution
 - .env file configured
+- Bundled fallback schema: src/data/default-schema.json (~218KB)
 
 ---
 
@@ -161,28 +163,49 @@ interface ApiResponse<T> {
 
 ---
 
-## Phase 4: Schema Sync (OpenAPI 3.0.1)
+## Phase 4: Schema Sync (OpenAPI 3.0.1) - [x] COMPLETE
 
-### 4.1 `src/api/schema.ts`
+### 4.1 `src/api/schema.ts` - [x] COMPLETE
 
 **Functions**:
-- `getConfigPaths()` - Return config paths with WSL support
-- `getSchemaMeta()` - Load schema metadata
-- `isSchemaStale()` - Check if cache > 24h old
-- `needsSync()` - Check if sync needed
-- `saveSchemaMeta(source)` - Save metadata
-- `loadSchemaIndex()` - Load cached index
-- `generateIndex(openApiSpec)` - Generate index from OpenAPI paths
+- [x] `getConfigPaths()` - Return config paths with WSL support
+- [x] `getConfigDir()` - Get first existing config dir
+- [x] `ensureConfigDir()` - Create config dir if needed
+- [x] `getSchemaMeta()` - Load schema metadata
+- [x] `isSchemaStale()` - Check if cache > 24h old
+- [x] `schemaIndexExists()` - Check if index file exists
+- [x] `needsSync()` - Check if sync needed
+- [x] `saveSchemaMeta(source)` - Save metadata
+- [x] `loadSchemaIndex()` - Load cached index
+- [x] `saveSchemaIndex(index)` - Save index to cache
+- [x] `saveSchema(spec)` - Save full spec to cache
+- [x] `generateIndex(openApiSpec)` - Generate index from OpenAPI paths
+- [x] `loadFallbackSchema()` - Load bundled default-schema.json
 
-**SchemaIndex type**:
+**Types**:
 ```typescript
+interface SchemaMeta {
+  lastSynced: string;  // ISO timestamp
+  source: "remote" | "fallback";
+}
+
 type SchemaIndex = Record<string, string[]>;  // path -> [methods]
+
+interface OpenAPISpec {
+  openapi: string;
+  paths: Record<string, Record<string, any>>;
+}
 ```
 
 **Cached files** (in `~/.config/intervals-icu-cli/`):
-- `schema.json` - Full OpenAPI spec
+- `schema.json` - Full OpenAPI spec (~218KB)
 - `schema-index.json` - Lightweight index (path → methods)
 - `schema-meta.json` - Sync metadata (timestamp, source)
+
+**Bundled fallback**:
+- `src/data/default-schema.json` - Shipped with CLI, used if remote fetch fails
+
+**Test coverage**: 33 tests, 100% pass rate. Overall coverage: 99.38% lines.
 
 ---
 
@@ -358,7 +381,7 @@ program.version("1.0.0")
 
 1. [x] **Phase 1-2**: Foundation & config
 2. [x] **Phase 3**: API client
-3. **Phase 4**: Schema sync (fetch OpenAPI spec)
+3. [x] **Phase 4**: Schema sync (fetch OpenAPI spec)
 4. **Phase 5**: Dynamic command mapping
 5. **Phase 6**: Entry point & static commands
 6. **Phase 7**: Tests (ongoing)
