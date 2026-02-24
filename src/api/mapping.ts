@@ -231,8 +231,9 @@ export function createActionHandler(
 ): (...args: any[]) => Promise<void> {
   const action = detectAction(method, pathInfo.params, pathInfo.resources);
 
-  return async (...args: any[]) => {
-    const options = args[args.length - 1];
+  return async function(this: any, ...args: any[]) {
+    const cmd = args[args.length - 1];
+    const options = cmd.opts();
     const positionalArgs = args.slice(0, -1);
 
     const pathParams = operation.parameters?.filter(p => p.in === "path") || [];
@@ -250,9 +251,20 @@ export function createActionHandler(
     }
 
     const config = getConfig();
+    
+    let parent = cmd.parent;
+    let dryRun = false;
+    let force = false;
+    while (parent) {
+      const parentOpts = parent.opts();
+      if (parentOpts.dryRun !== undefined) dryRun = parentOpts.dryRun;
+      if (parentOpts.force !== undefined) force = parentOpts.force;
+      parent = parent.parent;
+    }
+    
     const client = new ApiClient(config, {
-      dryRun: options.dryRun,
-      force: options.force,
+      dryRun,
+      force,
     });
 
     const requestData = method.toUpperCase() === "GET" ? queryParams : body;

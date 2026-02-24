@@ -33,6 +33,8 @@ intervals-icu config
 
 ### Local (with Bun)
 
+**Note**: CLI commands follow API path hierarchy: `namespace resource action <id> [flags]`
+
 ```bash
 # Sync API schema (run on first launch)
 bun run src/index.ts sync
@@ -41,19 +43,16 @@ bun run src/index.ts sync
 bun run src/index.ts athlete get <id>
 
 # List activities (oldest required by API)
-bun run src/index.ts activities list --athlete-id <id> --oldest 2024-01-01
+bun run src/index.ts athlete activities list <id> --oldest 2024-01-01
 
 # List activities for specific athlete with date range
-bun run src/index.ts activities list --athlete-id <id> --oldest 2024-01-01 --newest 2024-12-31 --limit 100
+bun run src/index.ts athlete activities list <id> --oldest 2024-01-01 --newest 2024-12-31 --limit 100
 
 # Get activity details
 bun run src/index.ts activity get <id>
 
 # Get activity with streams
 bun run src/index.ts activity get <id> --include-streams
-
-# List events
-bun run src/index.ts events list --athlete-id <id>
 
 # Get event details
 bun run src/index.ts event get <id>

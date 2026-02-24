@@ -104,6 +104,17 @@ Rule: Every registered option MUST be used in action handler or output processin
 Context: Options like `--full` were registered but never read in handler, creating dead code and inconsistent behavior.
 Example: Grep for `options.{flagName}` in handler and `processOutput` before declaring feature complete.
 
+### CLI - Commander.js Options Access
+Rule: In action handlers, use `this.opts()` to access command options, NOT `args[args.length - 1]` directly.
+Context: Commander.js passes the Command object as the last argument, not the options hash. Options are accessed via `.opts()`.
+Example: Wrong: `const options = args[args.length - 1]; const val = options.flag;`
+       Correct: `const cmd = args[args.length - 1]; const options = cmd.opts(); const val = options.flag;`
+
+### CLI - Global Options in Nested Commands
+Rule: Global flags (--dry-run, --force, --config) are on parent program, not on nested command. Traverse parent chain.
+Context: Nested commands don't inherit parent options; must walk up `.parent` chain to get global option values.
+Example: `let dryRun = false; let parent = cmd.parent; while(parent) { if(parent.opts().dryRun) dryRun = true; parent = parent.parent; }`
+
 ### CLI - First-Run Experience
 Rule: CLI must work without running `sync` first by generating index from bundled fallback schema.
 Context: Fresh install should show all commands immediately, not require network fetch.
