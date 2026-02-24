@@ -37,35 +37,54 @@ intervals-icu config
 # Sync API schema (run on first launch)
 bun run src/index.ts sync
 
-# Get current athlete (uses API key's default athlete, or use "0")
-bun run src/index.ts athlete get
-
-# Get athlete by ID
+# Get athlete by ID (use "0" for API key's default athlete)
 bun run src/index.ts athlete get <id>
 
-# List activities
-bun run src/index.ts activities list
+# List activities (oldest required by API)
+bun run src/index.ts activities list --athlete-id <id> --oldest 2024-01-01
 
-# List activities for specific athlete
-bun run src/index.ts activities list --athlete-id <id>
+# List activities for specific athlete with date range
+bun run src/index.ts activities list --athlete-id <id> --oldest 2024-01-01 --newest 2024-12-31 --limit 100
 
-# List workouts
-bun run src/index.ts workouts list
+# Get activity details
+bun run src/index.ts activity get <id>
 
-# Create a workout (safety --force required)
-bun run src/index.ts workouts create --force --file workout.json
+# Get activity with streams
+bun run src/index.ts activity get <id> --include-streams
 
-# Update athlete settings
-bun run src/index.ts athlete update --name "New Name" --force
+# List events
+bun run src/index.ts events list --athlete-id <id>
 
-# Upload activity (FIT/TCX/GPX file)
-bun run src/index.ts activities upload --file activity.fit --force
+# Get event details
+bun run src/index.ts event get <id>
 ```
 
 ### Output Modes
 
 - **Minimal (default)**: Returns only id + modified fields
 - **Full**: Use `--full` flag for complete response
+
+## Global Flags
+
+- `-h, --help`: Show help
+- `--version`: Show version
+- `-d, --dry-run`: Simulate request without sending
+- `-f, --force`: Enable write operations (required for create/update/delete)
+- `-c, --config <path>`: Path to config file
+- `--full`: Return complete response (default: minimal)
+- `--format <json|ids|count>`: Output format
+- `--fields <fields>`: Limit output to specific fields (comma-separated)
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | API error / generic failure |
+| 2 | Invalid usage |
+| 3 | Timeout / network error |
+| 4 | Missing configuration |
+| 10 | --force required |
 
 ## Configuration
 
