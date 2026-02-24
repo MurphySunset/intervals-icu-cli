@@ -1,9 +1,40 @@
+import { Command } from "commander";
+
 export interface PathInfo {
   namespace: string;
   resources: string[];
   params: string[];
   pathTemplate: string;
 }
+
+export interface OpenAPIParameter {
+  name: string;
+  in: "path" | "query" | "header" | "cookie";
+  required?: boolean;
+  schema?: { type?: string; format?: string };
+  description?: string;
+}
+
+export interface OpenAPIOperation {
+  parameters?: OpenAPIParameter[];
+  requestBody?: { required?: boolean };
+  summary?: string;
+  description?: string;
+}
+
+export interface RegisteredCommand {
+  command: Command;
+  pathInfo: PathInfo;
+  method: string;
+  operation: OpenAPIOperation;
+}
+
+export interface OpenAPISpec {
+  openapi: string;
+  paths: Record<string, Record<string, OpenAPIOperation>>;
+}
+
+export type SchemaIndex = Record<string, string[]>;
 
 const PARAM_PATTERN = /\{([^}]+)\}/g;
 
@@ -47,11 +78,17 @@ export function parsePath(path: string): PathInfo {
   };
 }
 
-export function detectAction(method: string, params: string[]): string {
+export function detectAction(method: string, params: string[], resources?: string[]): string {
   const normalizedMethod = method.toUpperCase();
   
   switch (normalizedMethod) {
     case "GET":
+      if (resources && resources.length > 0 && params.length > resources.length) {
+        return "get";
+      }
+      if (resources && resources.length > 0) {
+        return "list";
+      }
       return params.length > 0 ? "get" : "list";
     case "POST":
       return "create";
@@ -131,4 +168,125 @@ export function pickFields(obj: any, fields: string[]): any {
   }
   
   return result;
+}
+
+export function getCommandPath(pathInfo: PathInfo, action: string): string[] {
+  return [pathInfo.namespace, ...pathInfo.resources, action];
+}
+
+function getOrCreateCommand(
+  program: Command,
+  cmdPath: string[],
+  cache: Map<string, Command>
+): Command {
+  if (cmdPath.length === 0) {
+    return program;
+  }
+  
+  const [current, ...rest] = cmdPath;
+  const currentCacheKey = cmdPath.slice(0, 1).join(":");
+  
+  let currentCmd: Command;
+  if (cache.has(currentCacheKey)) {
+    currentCmd = cache.get(currentCacheKey)!;
+  } else {
+    if (rest.length === 0) {
+      currentCmd = program.command(current);
+    } else {
+      const description = current.toUpperCase();
+      currentCmd = program.command(current).description(description);
+    }
+    cache.set(currentCacheKey, currentCmd);
+  }
+  
+  return getOrCreateCommand(currentCmd, rest, cache);
+}
+
+function registerCommand(
+  program: Command,
+  pathInfo: PathInfo,
+  method: string,
+  operation: OpenAPIOperation,
+  cache: Map<string, Command>
+): Command {
+  const action = detectAction(method, pathInfo.params, pathInfo.resources);
+  const cmdPath = getCommandPath(pathInfo, action);
+  const command = getOrCreateCommand(program, cmdPath, cache);
+  
+  const description = operation.summary || `${action} ${pathInfo.resources[pathInfo.resources.length - 1] || pathInfo.namespace}`;
+  command.description(description);
+  command.allowUnknownOption();
+  
+  const pathParams = operation.parameters?.filter(p => p.in === "path") || [];
+  for (const param of pathParams) {
+    const argName = param.name;
+    const argDesc = param.description || `${param.name} parameter`;
+    command.argument(`<${argName}>`, argDesc);
+  }
+  
+  const queryParams = operation.parameters?.filter(p => p.in === "query") || [];
+  for (const param of queryParams) {
+    const flagName = param.name.replace(/_/g, "-");
+    const flagDesc = param.description || `${param.name} query parameter`;
+    const required = param.required || false;
+    
+    if (required) {
+      command.requiredOption(`--${flagName} <value>`, flagDesc);
+    } else {
+      command.option(`--${flagName} [value]`, flagDesc);
+    }
+  }
+  
+  if (["create", "update", "delete"].includes(action)) {
+    command.option("--file <path>", "Read JSON payload from file");
+  }
+  
+  if (["update", "delete"].includes(action)) {
+    command.option("--full", "Return full response instead of minimal output");
+  }
+  
+  command.option("--fields <fields>", "Limit output to specific fields (comma separated)");
+  command.option("--format <format>", "Output format (json, ids, count)", "json");
+  
+  return command;
+}
+
+export function mapRoutesToCommands(
+  program: Command,
+  schemaIndex: SchemaIndex,
+  spec: OpenAPISpec
+): RegisteredCommand[] {
+  const registered: RegisteredCommand[] = [];
+  const commandCache = new Map<string, Command>();
+  
+  for (const [path, methods] of Object.entries(schemaIndex)) {
+    const methodsList: string[] = methods;
+    const pathItem = spec.paths[path];
+    if (!pathItem) continue;
+    
+    const pathInfo = parsePath(path);
+    
+    for (const method of methodsList) {
+      const operation = pathItem[method.toLowerCase()];
+      if (!operation) continue;
+      
+      const action = detectAction(method, pathInfo.params, pathInfo.resources);
+      
+      const cmdPath = getCommandPath(pathInfo, action);
+      const cacheKey = `${path}:${method}`;
+      if (commandCache.has(cacheKey)) continue;
+      
+      const command = registerCommand(program, pathInfo, method, operation, commandCache);
+      commandCache.set(cacheKey, command);
+      
+      registered.push({
+        command,
+        pathInfo,
+        method,
+        operation,
+      });
+    }
+  }
+  
+  return registered;
 }

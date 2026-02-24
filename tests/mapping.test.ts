@@ -1,10 +1,14 @@
 import { describe, test, expect } from "bun:test";
+import { Command } from "commander";
 import {
   parsePath,
   detectAction,
   buildPath,
   pickFields,
+  getCommandPath,
+  mapRoutesToCommands,
 } from "../src/api/mapping";
+import type { SchemaIndex, OpenAPISpec } from "../src/api/mapping";
 
 describe("parsePath", () => {
   test("parses single param root path", () => {
@@ -108,12 +112,24 @@ describe("parsePath", () => {
 });
 
 describe("detectAction", () => {
-  test("GET with params returns get", () => {
+  test("GET with params and no resources returns get", () => {
     expect(detectAction("GET", ["id"])).toBe("get");
   });
 
   test("GET with no params returns list", () => {
     expect(detectAction("GET", [])).toBe("list");
+  });
+
+  test("GET with params and resources returns list", () => {
+    expect(detectAction("GET", ["id"], ["activities"])).toBe("list");
+  });
+
+  test("GET with params and resources returns get if more params than resources", () => {
+    expect(detectAction("GET", ["id", "date"], ["wellness"])).toBe("get");
+  });
+
+  test("GET with params and multiple resources returns list", () => {
+    expect(detectAction("GET", ["id"], ["gear", "reminder"])).toBe("list");
   });
 
   test("POST returns create", () => {
@@ -248,5 +264,393 @@ describe("pickFields", () => {
   test("handles array index access", () => {
     const obj = { items: [{ id: 1 }, { id: 2 }] };
     expect(pickFields(obj, ["items.0"])).toEqual({ items: [{ id: 1 }] });
+  });
+});
+
+describe("getCommandPath", () => {
+  test("builds path for simple namespace with action", () => {
+    const pathInfo = parsePath("/api/v1/athlete/{id}");
+    const action = "get";
+    const result = getCommandPath(pathInfo, action);
+    expect(result).toEqual(["athlete", "get"]);
+  });
+
+  test("builds path with nested resource", () => {
+    const pathInfo = parsePath("/api/v1/athlete/{id}/activities");
+    const action = "list";
+    const result = getCommandPath(pathInfo, action);
+    expect(result).toEqual(["athlete", "activities", "list"]);
+  });
+
+  test("builds path with deeply nested resource", () => {
+    const pathInfo = parsePath("/api/v1/athlete/{id}/workouts/{workoutId}");
+    const action = "get";
+    const result = getCommandPath(pathInfo, action);
+    expect(result).toEqual(["athlete", "workouts", "get"]);
+  });
+
+  test("builds path with multiple nested resources", () => {
+    const pathInfo = parsePath("/api/v1/athlete/{id}/gear/{gearId}/reminder/{reminderId}");
+    const action = "get";
+    const result = getCommandPath(pathInfo, action);
+    expect(result).toEqual(["athlete", "gear", "reminder", "get"]);
+  });
+});
+
+describe("mapRoutesToCommands", () => {
+  test("creates namespace command for simple path", () => {
+    const program = new Command();
+    const schemaIndex: SchemaIndex = {
+      "/api/v1/athlete/{id}": ["GET"],
+    };
+    const spec: OpenAPISpec = {
+      openapi: "3.0.1",
+      paths: {
+        "/api/v1/athlete/{id}": {
+          get: {
+            summary: "Get athlete",
+            parameters: [{ name: "id", in: "path", required: true }],
+          },
+        },
+      },
+    };
+
+    const registered = mapRoutesToCommands(program, schemaIndex, spec);
+
+    expect(registered).toHaveLength(1);
+    expect(registered[0].method).toBe("GET");
+    expect(registered[0].pathInfo.namespace).toBe("athlete");
+  });
+
+  test("creates nested resource commands", () => {
+    const program = new Command();
+    const schemaIndex: SchemaIndex = {
+      "/api/v1/athlete/{id}/activities": ["GET"],
+    };
+    const spec: OpenAPISpec = {
+      openapi: "3.0.1",
+      paths: {
+        "/api/v1/athlete/{id}/activities": {
+          get: {
+            summary: "List activities",
+            parameters: [
+              { name: "id", in: "path", required: true },
+              { name: "oldest", in: "query", required: true },
+              { name: "newest", in: "query", required: false },
+            ],
+          },
+        },
+      },
+    };
+
+    const registered = mapRoutesToCommands(program, schemaIndex, spec);
+
+    expect(registered).toHaveLength(1);
+    expect(registered[0].pathInfo.resources).toEqual(["activities"]);
+  });
+
+  test("registers positional args from path params", () => {
+    const program = new Command();
+    const schemaIndex: SchemaIndex = {
+      "/api/v1/athlete/{id}": ["GET"],
+    };
+    const spec: OpenAPISpec = {
+      openapi: "3.0.1",
+      paths: {
+        "/api/v1/athlete/{id}": {
+          get: {
+            summary: "Get athlete",
+            parameters: [{ name: "id", in: "path", required: true }],
+          },
+        },
+      },
+    };
+
+    mapRoutesToCommands(program, schemaIndex, spec);
+
+    const athleteCmd = program.commands.find((c: any) => c.name() === "athlete");
+    const getCmd = athleteCmd?.commands.find((c: any) => c.name() === "get");
+    expect((getCmd as any)._args).toHaveLength(1);
+    expect((getCmd as any)._args[0].name()).toBe("id");
+  });
+
+  test("registers multiple positional args", () => {
+    const program = new Command();
+    const schemaIndex: SchemaIndex = {
+      "/api/v1/athlete/{id}/wellness/{date}": ["GET"],
+    };
+    const spec: OpenAPISpec = {
+      openapi: "3.0.1",
+      paths: {
+        "/api/v1/athlete/{id}/wellness/{date}": {
+          get: {
+            summary: "Get wellness",
+            parameters: [
+              { name: "id", in: "path", required: true },
+              { name: "date", in: "path", required: true },
+            ],
+          },
+        },
+      },
+    };
+
+    mapRoutesToCommands(program, schemaIndex, spec);
+
+    const athleteCmd = program.commands.find((c: any) => c.name() === "athlete");
+    const wellnessCmd = athleteCmd?.commands.find((c: any) => c.name() === "wellness");
+    const getCmd = wellnessCmd?.commands.find((c: any) => c.name() === "get");
+    expect((getCmd as any)._args).toHaveLength(2);
+    expect((getCmd as any)._args.map((a: any) => a.name())).toEqual(["id", "date"]);
+  });
+
+  test("registers required query params as required options", () => {
+    const program = new Command();
+    const schemaIndex: SchemaIndex = {
+      "/api/v1/athlete/{id}/activities": ["GET"],
+    };
+    const spec: OpenAPISpec = {
+      openapi: "3.0.1",
+      paths: {
+        "/api/v1/athlete/{id}/activities": {
+          get: {
+            summary: "List activities",
+            parameters: [
+              { name: "id", in: "path", required: true },
+              { name: "oldest", in: "query", required: true },
+            ],
+          },
+        },
+      },
+    };
+
+    mapRoutesToCommands(program, schemaIndex, spec);
+
+    const athleteCmd = program.commands.find((c: any) => c.name() === "athlete");
+    const activitiesCmd = athleteCmd?.commands.find((c: any) => c.name() === "activities");
+    const listCmd = activitiesCmd?.commands.find((c: any) => c.name() === "list");
+    const oldestOption = (listCmd as any).options.find((o: any) => o.long === "--oldest");
+    expect(oldestOption).toBeDefined();
+    expect(oldestOption.required).toBe(true);
+  });
+
+  test("registers optional query params as options", () => {
+    const program = new Command();
+    const schemaIndex: SchemaIndex = {
+      "/api/v1/athlete/{id}/activities": ["GET"],
+    };
+    const spec: OpenAPISpec = {
+      openapi: "3.0.1",
+      paths: {
+        "/api/v1/athlete/{id}/activities": {
+          get: {
+            summary: "List activities",
+            parameters: [
+              { name: "id", in: "path", required: true },
+              { name: "oldest", in: "query", required: true },
+              { name: "newest", in: "query", required: false },
+            ],
+          },
+        },
+      },
+    };
+
+    mapRoutesToCommands(program, schemaIndex, spec);
+
+    const athleteCmd = program.commands.find((c: any) => c.name() === "athlete");
+    const activitiesCmd = athleteCmd?.commands.find((c: any) => c.name() === "activities");
+    const listCmd = activitiesCmd?.commands.find((c: any) => c.name() === "list");
+    const newestOption = (listCmd as any).options.find((o: any) => o.long === "--newest");
+    expect(newestOption).toBeDefined();
+    expect(newestOption.required).toBe(false);
+  });
+
+  test("adds --fields and --format options to all commands", () => {
+    const program = new Command();
+    const schemaIndex: SchemaIndex = {
+      "/api/v1/athlete/{id}": ["GET"],
+    };
+    const spec: OpenAPISpec = {
+      openapi: "3.0.1",
+      paths: {
+        "/api/v1/athlete/{id}": {
+          get: {
+            summary: "Get athlete",
+            parameters: [{ name: "id", in: "path", required: true }],
+          },
+        },
+      },
+    };
+
+    mapRoutesToCommands(program, schemaIndex, spec);
+
+    const athleteCmd = program.commands.find((c: any) => c.name() === "athlete");
+    const getCmd = athleteCmd?.commands.find((c: any) => c.name() === "get");
+    const options = (getCmd as any).options.map((o: any) => o.long);
+    expect(options).toContain("--fields");
+    expect(options).toContain("--format");
+  });
+
+  test("adds --file option to create/update/delete commands", () => {
+    const program = new Command();
+    const schemaIndex: SchemaIndex = {
+      "/api/v1/athlete/{id}": ["PUT"],
+    };
+    const spec: OpenAPISpec = {
+      openapi: "3.0.1",
+      paths: {
+        "/api/v1/athlete/{id}": {
+          put: {
+            summary: "Update athlete",
+            parameters: [{ name: "id", in: "path", required: true }],
+            requestBody: { required: true },
+          },
+        },
+      },
+    };
+
+    mapRoutesToCommands(program, schemaIndex, spec);
+
+    const athleteCmd = program.commands.find((c: any) => c.name() === "athlete");
+    const updateCmd = athleteCmd?.commands.find((c: any) => c.name() === "update");
+    const options = (updateCmd as any).options.map((o: any) => o.long);
+    expect(options).toContain("--file");
+  });
+
+  test("adds --full option to update/delete commands", () => {
+    const program = new Command();
+    const schemaIndex: SchemaIndex = {
+      "/api/v1/athlete/{id}": ["DELETE"],
+    };
+    const spec: OpenAPISpec = {
+      openapi: "3.0.1",
+      paths: {
+        "/api/v1/athlete/{id}": {
+          delete: {
+            summary: "Delete athlete",
+            parameters: [{ name: "id", in: "path", required: true }],
+          },
+        },
+      },
+    };
+
+    mapRoutesToCommands(program, schemaIndex, spec);
+
+    const athleteCmd = program.commands.find((c: any) => c.name() === "athlete");
+    const deleteCmd = athleteCmd?.commands.find((c: any) => c.name() === "delete");
+    const options = (deleteCmd as any).options.map((o: any) => o.long);
+    expect(options).toContain("--full");
+  });
+
+  test("handles underscore in param names with dashes in flag names", () => {
+    const program = new Command();
+    const schemaIndex: SchemaIndex = {
+      "/api/v1/athlete/{id}/activities": ["GET"],
+    };
+    const spec: OpenAPISpec = {
+      openapi: "3.0.1",
+      paths: {
+        "/api/v1/athlete/{id}/activities": {
+          get: {
+            summary: "List activities",
+            parameters: [
+              { name: "id", in: "path", required: true },
+              { name: "oldest", in: "query", required: true },
+              { name: "route_id", in: "query", required: false },
+            ],
+          },
+        },
+      },
+    };
+
+    mapRoutesToCommands(program, schemaIndex, spec);
+
+    const athleteCmd = program.commands.find((c: any) => c.name() === "athlete");
+    const activitiesCmd = athleteCmd?.commands.find((c: any) => c.name() === "activities");
+    const listCmd = activitiesCmd?.commands.find((c: any) => c.name() === "list");
+    const routeIdOption = (listCmd as any).options.find((o: any) => o.long === "--route-id");
+    expect(routeIdOption).toBeDefined();
+  });
+
+  test("registers multiple methods for same path", () => {
+    const program = new Command();
+    const schemaIndex: SchemaIndex = {
+      "/api/v1/athlete/{id}": ["GET", "PUT", "DELETE"],
+    };
+    const spec: OpenAPISpec = {
+      openapi: "3.0.1",
+      paths: {
+        "/api/v1/athlete/{id}": {
+          get: {
+            summary: "Get athlete",
+            parameters: [{ name: "id", in: "path", required: true }],
+          },
+          put: {
+            summary: "Update athlete",
+            parameters: [{ name: "id", in: "path", required: true }],
+            requestBody: { required: true },
+          },
+          delete: {
+            summary: "Delete athlete",
+            parameters: [{ name: "id", in: "path", required: true }],
+          },
+        },
+      },
+    };
+
+    const registered = mapRoutesToCommands(program, schemaIndex, spec);
+
+    expect(registered).toHaveLength(3);
+    const methods = registered.map((r) => r.method);
+    expect(methods).toContain("GET");
+    expect(methods).toContain("PUT");
+    expect(methods).toContain("DELETE");
+  });
+
+  test("handles path with {ext} embedded param", () => {
+    const program = new Command();
+    const schemaIndex: SchemaIndex = {
+      "/api/v1/activity/{id}/power-curve{ext}": ["GET"],
+    };
+    const spec: OpenAPISpec = {
+      openapi: "3.0.1",
+      paths: {
+        "/api/v1/activity/{id}/power-curve{ext}": {
+          get: {
+            summary: "Get power curve",
+            parameters: [
+              { name: "id", in: "path", required: true },
+              { name: "ext", in: "path", required: true },
+            ],
+          },
+        },
+      },
+    };
+
+    const registered = mapRoutesToCommands(program, schemaIndex, spec);
+
+    expect(registered).toHaveLength(1);
+    expect(registered[0].pathInfo.params).toEqual(["id", "ext"]);
+  });
+
+  test("sets allowUnknownOption on all commands", () => {
+    const program = new Command();
+    const schemaIndex: SchemaIndex = {
+      "/api/v1/athlete/{id}": ["GET"],
+    };
+    const spec: OpenAPISpec = {
+      openapi: "3.0.1",
+      paths: {
+        "/api/v1/athlete/{id}": {
+          get: {
+            summary: "Get athlete",
+            parameters: [{ name: "id", in: "path", required: true }],
+          },
+        },
+      },
+    };
+
+    const registered = mapRoutesToCommands(program, schemaIndex, spec);
+
+    expect(registered[0].command.options).toBeDefined();
   });
 });
