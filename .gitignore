@@ -1,4 +1,13 @@
-.env
+# Dependencies
+node_modules/
 
-#AI Agents
+# Environment and secrets
+.env
+.env.*
+
+# AI Agents
 .opencode/
+
+# Build output
+dist/
+coverage/
