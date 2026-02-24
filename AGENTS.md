@@ -118,6 +118,20 @@ Rule: Config file paths must check both $HOME and $USERPROFILE on WSL/Windows sy
 Context: WSL maps Windows paths differently; config.json exists in USERPROFILE on Windows, HOME on Linux/WSL.
 Example: Check both `~/.config/intervals-icu-cli/config.json` and `$USERPROFILE/.config/intervals-icu-cli/config.json`.
 
+### Testing - Bun Test API
+Rule: Bun's test runner is NOT fully vitest-compatible. Missing: `vi.advanceTimersByTimeAsync`, `vi.runOnlyPendingTimersAsync`.
+Context: Use `vi.runAllTimers()` or mock errors directly. Check bun:test API before assuming vitest compatibility.
+
+### Testing - Fetch Mock Structure
+Rule: Bun's fetch mock calls are `(url, options)` where options contains headers - NOT a third argument.
+Context: Always inspect mock.calls structure first: `const [url, options] = fetchSpy.mock.calls[0]`.
+Example: `expect(options?.headers?.Authorization).toBe(...)` not `expect(fetchCall[2]?.Authorization)`
+
+### Testing - Avoid Fake Timers
+Rule: Prefer mocking errors directly over `vi.useFakeTimers()` for async code.
+Context: Fake timers with async operations cause hangs/timeout issues in bun test runner.
+Example: For timeout test, mock fetch to reject with AbortError directly.
+
 ## Notes
 - **API Docs**: https://intervals.icu/api-docs.html
 - **OpenAPI Spec**: https://intervals.icu/api/v1/docs
