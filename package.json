@@ -2,7 +2,7 @@
   "name": "intervals-icu-cli",
   "version": "0.1.0",
   "description": "Bridge for intervals.icu API - athletic training data management",
-  "main": "dist/src/index.js",
+  "main": "dist/index.js",
   "bin": {
     "intervals-icu": "bin/intervals-icu"
   },
