@@ -1,6 +1,7 @@
 # Integration Plan: Intervals.icu CLI
 
 ## Current State
+- **Phase 2 COMPLETE**: Configuration module
 - **Phase 1 COMPLETE**: Project infrastructure setup
 - package.json, tsconfig.json, bin wrapper created
 - Directory structure: src/, src/api/, src/commands/, tests/, tests/fixtures/
@@ -55,7 +56,15 @@ intervals-icu-cli/
 
 ## Phase 2: Configuration Module
 
-### 2.1 `src/config.ts`
+### 2.1 `src/config.ts` - [x] COMPLETE
+
+- [x] Create Config interface (apiKey, baseUrl, timeout)
+- [x] Implement `loadConfig(flagConfigPath?, fileSystem?)`
+- [x] Implement `getAuthHeader(config)` with Basic auth
+- [x] WSL/Windows path handling for global config
+- [x] Priority order: Flag > Env > Global > Local
+- [x] Exit code 4 on missing apiKey, exit code 1 on config file errors
+- [x] Default baseUrl: https://intervals.icu, timeout: 30000
 
 **Config interface**:
 ```typescript
@@ -67,14 +76,32 @@ interface Config {
 ```
 
 **Priority order**:
-1. Environment variables (`INTERVALS_ICU_API_KEY`, `INTERVALS_ICU_TIMEOUT`)
-2. Global config (`~/.config/intervals-icu-cli/config.json`)
-3. Local `.env` file
+1. Flag config (--config)
+2. Environment variables (`INTERVALS_ICU_API_KEY`, `INTERVALS_ICU_TIMEOUT`)
+3. Global config (`~/.config/intervals-icu-cli/config.json`)
+4. Local `.env` file
 
 **Functions**:
-- `loadConfig(flagConfigPath?)` - Load config with priority
-- `getAuthHeader(config)` - Return Basic auth header
-- WSL/Windows path handling (from wordpress-bridge)
+- [x] `loadConfig(flagConfigPath?, fileSystem?)` - Load config with priority
+- [x] `getAuthHeader(config)` - Return Basic auth header (`API_KEY:actualKey`)
+- [x] WSL/Windows path handling (from wordpress-bridge)
+
+### 2.2 `tests/config.test.ts` - [x] COMPLETE
+
+- [x] Load from environment variables
+- [x] Load from global config file
+- [x] Load from local .env file
+- [x] Priority chain tests: flag > env > global > local
+- [x] WSL/Windows path resolution test
+- [x] Exit code 4 on missing apiKey
+- [x] Exit code 1 on flag config file not found
+- [x] Exit code 1 on flag config invalid JSON
+- [x] Silent ignore of global config invalid JSON
+- [x] Whitespace trimming on apiKey
+- [x] Trailing slash removal on baseUrl
+- [x] Default values for baseUrl and timeout
+- [x] Auth header encoding tests
+- [x] 17 tests, 100% pass rate
 
 ---
 
@@ -288,7 +315,7 @@ program.version("1.0.0")
 ### 5. Exit Codes
 **Decision**: Exit codes defined in AGENTS.md and README.md:
 - `0`: Success
-- `1`: API error / generic failure
+- `1`: API error / generic failure / config file error (not found or invalid JSON)
 - `2`: Invalid usage (missing required args)
 - `3`: Timeout / network error
 - `4`: Missing configuration
@@ -298,7 +325,7 @@ program.version("1.0.0")
 
 ## Implementation Order
 
-1. **Phase 1-2**: Foundation & config
+1. [x] **Phase 1-2**: Foundation & config
 2. **Phase 3**: API client
 3. **Phase 4**: Schema sync (fetch OpenAPI spec)
 4. **Phase 5**: Dynamic command mapping
