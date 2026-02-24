@@ -1,4 +1,6 @@
 import { Command } from "commander";
+import * as fs from "fs";
+import { ApiClient } from "./client";
 
 export interface PathInfo {
   namespace: string;
@@ -170,6 +172,103 @@ export function pickFields(obj: any, fields: string[]): any {
   return result;
 }
 
+export function extractQueryParams(options: any, operation: OpenAPIOperation): Record<string, any> {
+  const queryParams = operation.parameters?.filter(p => p.in === "query") || [];
+  const result: Record<string, any> = {};
+
+  for (const param of queryParams) {
+    const flagName = param.name.replace(/_/g, "-");
+    if (options[flagName] !== undefined) {
+      result[param.name] = options[flagName];
+    }
+  }
+
+  return result;
+}
+
+export function processOutput(data: any, options: any, action: string): any {
+  if (options.format === "count") {
+    return { count: Array.isArray(data) ? data.length : 1 };
+  }
+
+  if (options.format === "ids") {
+    if (Array.isArray(data)) {
+      return data.map(item => item.id);
+    }
+    return data?.id !== undefined ? [data.id] : [];
+  }
+
+  if ((action === "update" || action === "delete") && !options.full) {
+    if (data?.id !== undefined) {
+      return { id: data.id };
+    }
+    return {};
+  }
+
+  if (options.fields && !options.full) {
+    const fields = options.fields.split(",").map((f: string) => f.trim());
+    return pickFields(data, fields);
+  }
+
+  return data;
+}
+
+export function readPayloadFile(filePath: string, fileSystem: typeof fs = fs): any {
+  try {
+    const content = fileSystem.readFileSync(filePath, "utf-8");
+    return JSON.parse(content);
+  } catch (e) {
+    console.error(`Error: Failed to read or parse file: ${filePath}`);
+    process.exit(1);
+  }
+}
+
+export function createActionHandler(
+  pathInfo: PathInfo,
+  method: string,
+  operation: OpenAPIOperation,
+  getConfig: () => { apiKey: string; baseUrl: string; timeout: number }
+): (...args: any[]) => Promise<void> {
+  const action = detectAction(method, pathInfo.params, pathInfo.resources);
+
+  return async (...args: any[]) => {
+    const options = args[args.length - 1];
+    const positionalArgs = args.slice(0, -1);
+
+    const pathParams = operation.parameters?.filter(p => p.in === "path") || [];
+    const pathArgs: Record<string, string> = {};
+    for (let i = 0; i < pathParams.length; i++) {
+      pathArgs[pathParams[i].name] = positionalArgs[i];
+    }
+    const apiPath = buildPath(pathInfo.pathTemplate, pathArgs);
+
+    const queryParams = extractQueryParams(options, operation);
+
+    let body: any = undefined;
+    if (options.file) {
+      body = readPayloadFile(options.file);
+    }
+
+    const config = getConfig();
+    const client = new ApiClient(config, {
+      dryRun: options.dryRun,
+      force: options.force,
+    });
+
+    const requestData = method.toUpperCase() === "GET" ? queryParams : body;
+    const response = await client.request(method, apiPath, requestData);
+
+    if (!response.success) {
+      console.error(JSON.stringify(response.error, null, 2));
+      process.exit(1);
+    }
+
+    const output = processOutput(response.data, options, action);
+    console.log(JSON.stringify(output, null, 2));
+    process.exit(0);
+  };
+}
+
 export function getCommandPath(pathInfo: PathInfo, action: string): string[] {
   return [pathInfo.namespace, ...pathInfo.resources, action];
 }
@@ -207,7 +306,8 @@ function registerCommand(
   pathInfo: PathInfo,
   method: string,
   operation: OpenAPIOperation,
-  cache: Map<string, Command>
+  cache: Map<string, Command>,
+  getConfig: () => { apiKey: string; baseUrl: string; timeout: number }
 ): Command {
   const action = detectAction(method, pathInfo.params, pathInfo.resources);
   const cmdPath = getCommandPath(pathInfo, action);
@@ -247,38 +347,41 @@ function registerCommand(
   
   command.option("--fields <fields>", "Limit output to specific fields (comma separated)");
   command.option("--format <format>", "Output format (json, ids, count)", "json");
-  
+
+  command.action(createActionHandler(pathInfo, method, operation, getConfig));
+
   return command;
 }
 
 export function mapRoutesToCommands(
   program: Command,
   schemaIndex: SchemaIndex,
-  spec: OpenAPISpec
+  spec: OpenAPISpec,
+  getConfig: () => { apiKey: string; baseUrl: string; timeout: number }
 ): RegisteredCommand[] {
   const registered: RegisteredCommand[] = [];
   const commandCache = new Map<string, Command>();
-  
+
   for (const [path, methods] of Object.entries(schemaIndex)) {
     const methodsList: string[] = methods;
     const pathItem = spec.paths[path];
     if (!pathItem) continue;
-    
+
     const pathInfo = parsePath(path);
-    
+
     for (const method of methodsList) {
       const operation = pathItem[method.toLowerCase()];
       if (!operation) continue;
-      
+
       const action = detectAction(method, pathInfo.params, pathInfo.resources);
-      
+
       const cmdPath = getCommandPath(pathInfo, action);
       const cacheKey = `${path}:${method}`;
       if (commandCache.has(cacheKey)) continue;
-      
-      const command = registerCommand(program, pathInfo, method, operation, commandCache);
+
+      const command = registerCommand(program, pathInfo, method, operation, commandCache, getConfig);
       commandCache.set(cacheKey, command);
-      
+
       registered.push({
         command,
         pathInfo,
@@ -287,6 +390,6 @@ export function mapRoutesToCommands(
       });
     }
   }
-  
+
   return registered;
 }

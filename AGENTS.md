@@ -99,6 +99,11 @@ Rule: Traverse command tree directly rather than parsing help text.
 Context: `program.commands.find(c => c.name() === "ns").commands.find(c => c.name() === "action")`
 Example: Don't test with `program.helpInformation().contains("--flag")` - inspect `(cmd as any).options` directly.
 
+### CLI - Orphaned Flags
+Rule: Every registered option MUST be used in action handler or output processing. Unused flags are bugs.
+Context: Options like `--full` were registered but never read in handler, creating dead code and inconsistent behavior.
+Example: Grep for `options.{flagName}` in handler and `processOutput` before declaring feature complete.
+
 ### Architecture - API Parity
 Rule: CLI commands MUST map directly to API endpoints without abstraction or convenience layers.
 Context: No optional parameters, no defaults beyond what API provides. If API requires a param, CLI requires it.

@@ -1,4 +1,4 @@
-import { describe, test, expect } from "bun:test";
+import { describe, test, expect, vi } from "bun:test";
 import { Command } from "commander";
 import {
   parsePath,
@@ -7,8 +7,12 @@ import {
   pickFields,
   getCommandPath,
   mapRoutesToCommands,
+  extractQueryParams,
+  processOutput,
+  readPayloadFile,
+  createActionHandler,
 } from "../src/api/mapping";
-import type { SchemaIndex, OpenAPISpec } from "../src/api/mapping";
+import type { SchemaIndex, OpenAPISpec, OpenAPIOperation } from "../src/api/mapping";
 
 describe("parsePath", () => {
   test("parses single param root path", () => {
@@ -314,8 +318,9 @@ describe("mapRoutesToCommands", () => {
         },
       },
     };
+    const getConfig = () => ({ apiKey: "test", baseUrl: "https://test.com", timeout: 30000 });
 
-    const registered = mapRoutesToCommands(program, schemaIndex, spec);
+    const registered = mapRoutesToCommands(program, schemaIndex, spec, getConfig);
 
     expect(registered).toHaveLength(1);
     expect(registered[0].method).toBe("GET");
@@ -342,8 +347,9 @@ describe("mapRoutesToCommands", () => {
         },
       },
     };
+    const getConfig = () => ({ apiKey: "test", baseUrl: "https://test.com", timeout: 30000 });
 
-    const registered = mapRoutesToCommands(program, schemaIndex, spec);
+    const registered = mapRoutesToCommands(program, schemaIndex, spec, getConfig);
 
     expect(registered).toHaveLength(1);
     expect(registered[0].pathInfo.resources).toEqual(["activities"]);
@@ -365,8 +371,9 @@ describe("mapRoutesToCommands", () => {
         },
       },
     };
+    const getConfig = () => ({ apiKey: "test", baseUrl: "https://test.com", timeout: 30000 });
 
-    mapRoutesToCommands(program, schemaIndex, spec);
+    mapRoutesToCommands(program, schemaIndex, spec, getConfig);
 
     const athleteCmd = program.commands.find((c: any) => c.name() === "athlete");
     const getCmd = athleteCmd?.commands.find((c: any) => c.name() === "get");
@@ -393,8 +400,9 @@ describe("mapRoutesToCommands", () => {
         },
       },
     };
+    const getConfig = () => ({ apiKey: "test", baseUrl: "https://test.com", timeout: 30000 });
 
-    mapRoutesToCommands(program, schemaIndex, spec);
+    mapRoutesToCommands(program, schemaIndex, spec, getConfig);
 
     const athleteCmd = program.commands.find((c: any) => c.name() === "athlete");
     const wellnessCmd = athleteCmd?.commands.find((c: any) => c.name() === "wellness");
@@ -422,8 +430,9 @@ describe("mapRoutesToCommands", () => {
         },
       },
     };
+    const getConfig = () => ({ apiKey: "test", baseUrl: "https://test.com", timeout: 30000 });
 
-    mapRoutesToCommands(program, schemaIndex, spec);
+    mapRoutesToCommands(program, schemaIndex, spec, getConfig);
 
     const athleteCmd = program.commands.find((c: any) => c.name() === "athlete");
     const activitiesCmd = athleteCmd?.commands.find((c: any) => c.name() === "activities");
@@ -453,8 +462,9 @@ describe("mapRoutesToCommands", () => {
         },
       },
     };
+    const getConfig = () => ({ apiKey: "test", baseUrl: "https://test.com", timeout: 30000 });
 
-    mapRoutesToCommands(program, schemaIndex, spec);
+    mapRoutesToCommands(program, schemaIndex, spec, getConfig);
 
     const athleteCmd = program.commands.find((c: any) => c.name() === "athlete");
     const activitiesCmd = athleteCmd?.commands.find((c: any) => c.name() === "activities");
@@ -480,8 +490,9 @@ describe("mapRoutesToCommands", () => {
         },
       },
     };
+    const getConfig = () => ({ apiKey: "test", baseUrl: "https://test.com", timeout: 30000 });
 
-    mapRoutesToCommands(program, schemaIndex, spec);
+    mapRoutesToCommands(program, schemaIndex, spec, getConfig);
 
     const athleteCmd = program.commands.find((c: any) => c.name() === "athlete");
     const getCmd = athleteCmd?.commands.find((c: any) => c.name() === "get");
@@ -507,8 +518,9 @@ describe("mapRoutesToCommands", () => {
         },
       },
     };
+    const getConfig = () => ({ apiKey: "test", baseUrl: "https://test.com", timeout: 30000 });
 
-    mapRoutesToCommands(program, schemaIndex, spec);
+    mapRoutesToCommands(program, schemaIndex, spec, getConfig);
 
     const athleteCmd = program.commands.find((c: any) => c.name() === "athlete");
     const updateCmd = athleteCmd?.commands.find((c: any) => c.name() === "update");
@@ -532,8 +544,9 @@ describe("mapRoutesToCommands", () => {
         },
       },
     };
+    const getConfig = () => ({ apiKey: "test", baseUrl: "https://test.com", timeout: 30000 });
 
-    mapRoutesToCommands(program, schemaIndex, spec);
+    mapRoutesToCommands(program, schemaIndex, spec, getConfig);
 
     const athleteCmd = program.commands.find((c: any) => c.name() === "athlete");
     const deleteCmd = athleteCmd?.commands.find((c: any) => c.name() === "delete");
@@ -561,8 +574,9 @@ describe("mapRoutesToCommands", () => {
         },
       },
     };
+    const getConfig = () => ({ apiKey: "test", baseUrl: "https://test.com", timeout: 30000 });
 
-    mapRoutesToCommands(program, schemaIndex, spec);
+    mapRoutesToCommands(program, schemaIndex, spec, getConfig);
 
     const athleteCmd = program.commands.find((c: any) => c.name() === "athlete");
     const activitiesCmd = athleteCmd?.commands.find((c: any) => c.name() === "activities");
@@ -596,8 +610,9 @@ describe("mapRoutesToCommands", () => {
         },
       },
     };
+    const getConfig = () => ({ apiKey: "test", baseUrl: "https://test.com", timeout: 30000 });
 
-    const registered = mapRoutesToCommands(program, schemaIndex, spec);
+    const registered = mapRoutesToCommands(program, schemaIndex, spec, getConfig);
 
     expect(registered).toHaveLength(3);
     const methods = registered.map((r) => r.method);
@@ -625,8 +640,9 @@ describe("mapRoutesToCommands", () => {
         },
       },
     };
+    const getConfig = () => ({ apiKey: "test", baseUrl: "https://test.com", timeout: 30000 });
 
-    const registered = mapRoutesToCommands(program, schemaIndex, spec);
+    const registered = mapRoutesToCommands(program, schemaIndex, spec, getConfig);
 
     expect(registered).toHaveLength(1);
     expect(registered[0].pathInfo.params).toEqual(["id", "ext"]);
@@ -648,9 +664,321 @@ describe("mapRoutesToCommands", () => {
         },
       },
     };
+    const getConfig = () => ({ apiKey: "test", baseUrl: "https://test.com", timeout: 30000 });
 
-    const registered = mapRoutesToCommands(program, schemaIndex, spec);
+    const registered = mapRoutesToCommands(program, schemaIndex, spec, getConfig);
 
     expect(registered[0].command.options).toBeDefined();
+  });
+});
+
+describe("extractQueryParams", () => {
+  test("extracts single query param", () => {
+    const options = { oldest: "2024-01-01" };
+    const operation: OpenAPIOperation = {
+      parameters: [{ name: "oldest", in: "query", required: true }],
+    };
+    const result = extractQueryParams(options, operation);
+    expect(result).toEqual({ oldest: "2024-01-01" });
+  });
+
+  test("extracts multiple query params", () => {
+    const options = { oldest: "2024-01-01", newest: "2024-12-31", limit: "100" };
+    const operation: OpenAPIOperation = {
+      parameters: [
+        { name: "oldest", in: "query", required: true },
+        { name: "newest", in: "query", required: false },
+        { name: "limit", in: "query", required: false },
+      ],
+    };
+    const result = extractQueryParams(options, operation);
+    expect(result).toEqual({ oldest: "2024-01-01", newest: "2024-12-31", limit: "100" });
+  });
+
+  test("converts dashes to underscores in param names", () => {
+    const options = { "route-id": "123", oldest: "2024-01-01" };
+    const operation: OpenAPIOperation = {
+      parameters: [
+        { name: "oldest", in: "query", required: true },
+        { name: "route_id", in: "query", required: false },
+      ],
+    };
+    const result = extractQueryParams(options, operation);
+    expect(result).toEqual({ oldest: "2024-01-01", route_id: "123" });
+  });
+
+  test("skips undefined options", () => {
+    const options = { oldest: "2024-01-01", newest: undefined };
+    const operation: OpenAPIOperation = {
+      parameters: [
+        { name: "oldest", in: "query", required: true },
+        { name: "newest", in: "query", required: false },
+        { name: "limit", in: "query", required: false },
+      ],
+    };
+    const result = extractQueryParams(options, operation);
+    expect(result).toEqual({ oldest: "2024-01-01" });
+  });
+
+  test("handles mixed path and query params", () => {
+    const options = { oldest: "2024-01-01" };
+    const operation: OpenAPIOperation = {
+      parameters: [
+        { name: "id", in: "path", required: true },
+        { name: "oldest", in: "query", required: true },
+      ],
+    };
+    const result = extractQueryParams(options, operation);
+    expect(result).toEqual({ oldest: "2024-01-01" });
+  });
+
+  test("returns empty object when no query params", () => {
+    const options = { "dry-run": true };
+    const operation: OpenAPIOperation = {
+      parameters: [{ name: "id", in: "path", required: true }],
+    };
+    const result = extractQueryParams(options, operation);
+    expect(result).toEqual({});
+  });
+});
+
+describe("processOutput", () => {
+  test("returns data as-is by default", () => {
+    const data = { id: 1, name: "test", extra: "ignored" };
+    const options = { format: "json" };
+    const result = processOutput(data, options, "get");
+    expect(result).toEqual(data);
+  });
+
+  test("format count returns array length", () => {
+    const data = [{ id: 1 }, { id: 2 }, { id: 3 }];
+    const options = { format: "count" };
+    const result = processOutput(data, options, "list");
+    expect(result).toEqual({ count: 3 });
+  });
+
+  test("format count returns 1 for single object", () => {
+    const data = { id: 1, name: "test" };
+    const options = { format: "count" };
+    const result = processOutput(data, options, "get");
+    expect(result).toEqual({ count: 1 });
+  });
+
+  test("format ids returns array of ids", () => {
+    const data = [{ id: 1 }, { id: 2 }, { id: 3 }];
+    const options = { format: "ids" };
+    const result = processOutput(data, options, "list");
+    expect(result).toEqual([1, 2, 3]);
+  });
+
+  test("format ids returns single id in array", () => {
+    const data = { id: 42, name: "test" };
+    const options = { format: "ids" };
+    const result = processOutput(data, options, "get");
+    expect(result).toEqual([42]);
+  });
+
+  test("format ids returns empty array when no id", () => {
+    const data = { name: "test" };
+    const options = { format: "ids" };
+    const result = processOutput(data, options, "get");
+    expect(result).toEqual([]);
+  });
+
+  test("fields filters top-level fields", () => {
+    const data = { id: 1, name: "test", extra: "ignored" };
+    const options = { fields: "id,name" };
+    const result = processOutput(data, options, "get");
+    expect(result).toEqual({ id: 1, name: "test" });
+  });
+
+  test("fields with whitespace is trimmed", () => {
+    const data = { id: 1, name: "test", extra: "ignored" };
+    const options = { fields: " id , name " };
+    const result = processOutput(data, options, "get");
+    expect(result).toEqual({ id: 1, name: "test" });
+  });
+
+  test("fields filters nested fields", () => {
+    const data = {
+      id: 1,
+      athlete: { name: "John", age: 30 },
+      extra: "ignored",
+    };
+    const options = { fields: "id,athlete.name" };
+    const result = processOutput(data, options, "get");
+    expect(result).toEqual({ id: 1, athlete: { name: "John" } });
+  });
+
+  test("format count takes precedence over fields", () => {
+    const data = [{ id: 1 }, { id: 2 }];
+    const options = { format: "count", fields: "id" };
+    const result = processOutput(data, options, "list");
+    expect(result).toEqual({ count: 2 });
+  });
+
+  test("format ids takes precedence over fields", () => {
+    const data = [{ id: 1 }, { id: 2 }];
+    const options = { format: "ids", fields: "name" };
+    const result = processOutput(data, options, "list");
+    expect(result).toEqual([1, 2]);
+  });
+
+  test("minimal output for update action returns only id", () => {
+    const data = { id: 123, name: "Test", extra: "ignored" };
+    const options = {};
+    const result = processOutput(data, options, "update");
+    expect(result).toEqual({ id: 123 });
+  });
+
+  test("minimal output for delete action returns only id", () => {
+    const data = { id: 456, name: "Test", extra: "ignored" };
+    const options = {};
+    const result = processOutput(data, options, "delete");
+    expect(result).toEqual({ id: 456 });
+  });
+
+  test("--full flag returns complete data for update", () => {
+    const data = { id: 123, name: "Test", extra: "ignored" };
+    const options = { full: true };
+    const result = processOutput(data, options, "update");
+    expect(result).toEqual(data);
+  });
+
+  test("--full flag returns complete data for delete", () => {
+    const data = { id: 456, name: "Test", extra: "ignored" };
+    const options = { full: true };
+    const result = processOutput(data, options, "delete");
+    expect(result).toEqual(data);
+  });
+
+  test("get action always returns full data", () => {
+    const data = { id: 123, name: "Test", extra: "ignored" };
+    const options = {};
+    const result = processOutput(data, options, "get");
+    expect(result).toEqual(data);
+  });
+
+  test("list action always returns full data", () => {
+    const data = [{ id: 1, name: "Test1" }, { id: 2, name: "Test2" }];
+    const options = {};
+    const result = processOutput(data, options, "list");
+    expect(result).toEqual(data);
+  });
+
+  test("minimal output with no id returns empty object", () => {
+    const data = { message: "success" };
+    const options = {};
+    const result = processOutput(data, options, "update");
+    expect(result).toEqual({});
+  });
+
+  test("--full takes precedence over fields for update", () => {
+    const data = { id: 123, name: "Test", extra: "ignored" };
+    const options = { full: true, fields: "id,name" };
+    const result = processOutput(data, options, "update");
+    expect(result).toEqual(data);
+  });
+});
+
+describe("readPayloadFile", () => {
+  test("reads and parses valid JSON file", () => {
+    const data = JSON.stringify({ id: 1, name: "test" });
+    const mockFs = {
+      readFileSync: () => data,
+    } as any;
+    const result = readPayloadFile("test.json", mockFs);
+    expect(result).toEqual({ id: 1, name: "test" });
+  });
+
+  test("handles empty JSON object", () => {
+    const data = "{}";
+    const mockFs = {
+      readFileSync: () => data,
+    } as any;
+    const result = readPayloadFile("test.json", mockFs);
+    expect(result).toEqual({});
+  });
+
+  test("handles complex JSON", () => {
+    const data = JSON.stringify({
+      id: 1,
+      athlete: { name: "John", age: 30 },
+      activities: [1, 2, 3],
+    });
+    const mockFs = {
+      readFileSync: () => data,
+    } as any;
+    const result = readPayloadFile("test.json", mockFs);
+    expect(result).toEqual({
+      id: 1,
+      athlete: { name: "John", age: 30 },
+      activities: [1, 2, 3],
+    });
+  });
+});
+
+describe("createActionHandler", () => {
+  test("creates handler function", () => {
+    const pathInfo = parsePath("/api/v1/athlete/{id}");
+    const operation: OpenAPIOperation = {
+      parameters: [{ name: "id", in: "path", required: true }],
+    };
+    const getConfig = () => ({ apiKey: "test-key", baseUrl: "https://test.com", timeout: 30000 });
+
+    const handler = createActionHandler(pathInfo, "GET", operation, getConfig);
+    expect(typeof handler).toBe("function");
+  });
+
+  test("handler for POST action", () => {
+    const pathInfo = parsePath("/api/v1/athlete/{id}/events");
+    const operation: OpenAPIOperation = {
+      parameters: [{ name: "id", in: "path", required: true }],
+      requestBody: { required: true },
+    };
+    const getConfig = () => ({ apiKey: "test-key", baseUrl: "https://test.com", timeout: 30000 });
+
+    const handler = createActionHandler(pathInfo, "POST", operation, getConfig);
+    expect(typeof handler).toBe("function");
+  });
+
+  test("handler for DELETE action", () => {
+    const pathInfo = parsePath("/api/v1/activity/{id}");
+    const operation: OpenAPIOperation = {
+      parameters: [{ name: "id", in: "path", required: true }],
+    };
+    const getConfig = () => ({ apiKey: "test-key", baseUrl: "https://test.com", timeout: 30000 });
+
+    const handler = createActionHandler(pathInfo, "DELETE", operation, getConfig);
+    expect(typeof handler).toBe("function");
+  });
+
+  test("handler with multiple path params", () => {
+    const pathInfo = parsePath("/api/v1/athlete/{id}/wellness/{date}");
+    const operation: OpenAPIOperation = {
+      parameters: [
+        { name: "id", in: "path", required: true },
+        { name: "date", in: "path", required: true },
+      ],
+    };
+    const getConfig = () => ({ apiKey: "test-key", baseUrl: "https://test.com", timeout: 30000 });
+
+    const handler = createActionHandler(pathInfo, "GET", operation, getConfig);
+    expect(typeof handler).toBe("function");
+  });
+
+  test("handler creates correct action detection for different methods", () => {
+    const pathInfo = parsePath("/api/v1/athlete/{id}");
+    const getConfig = () => ({ apiKey: "test-key", baseUrl: "https://test.com", timeout: 30000 });
+
+    const getHandler = createActionHandler(pathInfo, "GET", { parameters: [] }, getConfig);
+    const postHandler = createActionHandler(pathInfo, "POST", { parameters: [] }, getConfig);
+    const putHandler = createActionHandler(pathInfo, "PUT", { parameters: [] }, getConfig);
+    const deleteHandler = createActionHandler(pathInfo, "DELETE", { parameters: [] }, getConfig);
+
+    expect(typeof getHandler).toBe("function");
+    expect(typeof postHandler).toBe("function");
+    expect(typeof putHandler).toBe("function");
+    expect(typeof deleteHandler).toBe("function");
   });
 });
