@@ -1,6 +1,7 @@
 # Integration Plan: Intervals.icu CLI
 
 ## Current State
+- **Phase 6 COMPLETE**: Entry Point & Commands (index.ts, commands/config.ts)
 - **Phase 5b COMPLETE**: Command Registration (mapping.ts)
 - **Phase 5a COMPLETE**: Core Utilities (mapping.ts)
 - **Phase 4 COMPLETE**: Schema Sync (OpenAPI 3.0.1)
@@ -303,7 +304,7 @@ program
 - `--full` - Full response for update/delete
 - `--file <path>` - JSON payload from file
 
-**Test coverage**: 61 tests, 100% pass rate. Overall: 144 tests, 100% pass rate.
+**Test coverage**: 94 tests, 100% pass rate. Overall: 177 tests, 100% pass rate.
 
 ---
 
@@ -344,9 +345,9 @@ User discovers via `--help` and subcommand exploration.
 
 ---
 
-## Phase 6: Entry Point & Commands
+## Phase 6: Entry Point & Commands - [x] COMPLETE
 
-### 6.1 `src/index.ts`
+### 6.1 `src/index.ts` - [x] COMPLETE
 
 **Global options**:
 - `-d, --dry-run` - Simulate requests
@@ -369,11 +370,15 @@ User discovers via `--help` and subcommand exploration.
 - Diagnostics/errors → stderr (logs, warnings, sync progress)
 - Always JSON output for agents; minimal by default, `--full` for complete response
 
-### 6.2 `src/commands/config.ts`
+**Test coverage**: 4 tests, 100% pass rate
+
+### 6.2 `src/commands/config.ts` - [x] COMPLETE
 
 Interactive config setup:
 1. Prompt for API key
 2. Save to `~/.config/intervals-icu-cli/config.json`
+
+**Implementation**: Uses Bun's built-in readline module for prompts
 
 ---
 
@@ -388,7 +393,8 @@ Interactive config setup:
 - `config.test.ts` - Config loading, priority order (17 tests)
 - `client.test.ts` - API client, auth, retries (33 tests)
 - `schema.test.ts` - Schema sync, index generation (33 tests)
-- `mapping.test.ts` - Core utilities (5a), command registration (5b) (61 tests) |
+- `mapping.test.ts` - Core utilities (5a), command registration (5b) (94 tests)
+- `index.test.ts` - Entry point, static commands, auto-sync (4 tests) |
 
 ---
 
@@ -485,9 +491,9 @@ program.version("1.0.0")
 2. [x] **Phase 3**: API client
 3. [x] **Phase 4**: Schema sync (fetch OpenAPI spec)
 4. [x] **Phase 5a**: Core utilities (parsePath, detectAction, pickFields, buildPath)
-5. **Phase 5b**: Command registration (mapRoutesToCommands hierarchy)
-6. **Phase 5c**: Command execution (action handlers, output processing)
-7. **Phase 6**: Entry point & static commands
+5. [x] **Phase 5b**: Command registration (mapRoutesToCommands hierarchy)
+6. [x] **Phase 5c**: Command execution (action handlers, output processing)
+7. [x] **Phase 6**: Entry point & static commands
 8. **Phase 7**: Tests (ongoing)
 
 Note: Phase 8 (Documentation) complete - AGENTS.md and README.md finalized with CLI Guidelines compliance.

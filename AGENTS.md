@@ -104,6 +104,11 @@ Rule: Every registered option MUST be used in action handler or output processin
 Context: Options like `--full` were registered but never read in handler, creating dead code and inconsistent behavior.
 Example: Grep for `options.{flagName}` in handler and `processOutput` before declaring feature complete.
 
+### CLI - First-Run Experience
+Rule: CLI must work without running `sync` first by generating index from bundled fallback schema.
+Context: Fresh install should show all commands immediately, not require network fetch.
+Example: `if (Object.keys(schemaIndex).length === 0) schemaIndex = generateSchemaIndex(fallbackSpec);`
+
 ### Architecture - API Parity
 Rule: CLI commands MUST map directly to API endpoints without abstraction or convenience layers.
 Context: No optional parameters, no defaults beyond what API provides. If API requires a param, CLI requires it.
@@ -147,6 +152,11 @@ Rule: Prefer mocking errors directly over `vi.useFakeTimers()` for async code.
 Context: Fake timers with async operations cause hangs/timeout issues in bun test runner.
 Example: For timeout test, mock fetch to reject with AbortError directly.
 
+### Testing - Cache File Isolation
+Rule: Test fixtures that write to real config directories can persist and affect CLI runs.
+Context: Tests writing to `~/.config/intervals-icu-cli/` left stale data that broke CLI execution.
+Example: Use temp directories in tests, or clear cache files before debugging CLI issues.
+
 ### Testing - Data-Driven Test Design
 Rule: Analyze all schema endpoints before implementing path parsing logic.
 Context: The 114 API paths contain patterns (embedded params, format suffixes) that edge cases must cover.
@@ -166,6 +176,11 @@ Example: `/api/v1/activity/{id}/power-curve{ext}` has params `["id", "ext"]`, no
 Rule: GET with resources → `list` if params == resources, `get` if params > resources.
 Context: `/athlete/{id}/activities` (1 param, 1 resource) → list. `/athlete/{id}/wellness/{date}` (2 params, 1 resource) → get.
 Example: `detectAction("GET", ["id"], ["activities"])` returns "list".
+
+### Architecture - Hierarchical Command Cache Keys
+Rule: Cache keys for nested commands must include full command path, not just current segment.
+Context: `getOrCreateCommand()` used `cmdPath.slice(0,1).join(":")` causing `athlete:get` and `athlete:activities:get` to collide.
+Example: Cache key should be `"athlete:activities:get"`, not `"athlete"`.
 
 ### Build - Bundled Assets
 Rule: Static assets in `src/data/` must be copied to `dist/data/` during build.
