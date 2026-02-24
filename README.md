@@ -37,20 +37,29 @@ intervals-icu config
 # Sync API schema (run on first launch)
 bun run src/index.ts sync
 
-# List athletes
-bun run src/index.ts athletes list
+# Get current athlete (uses API key's default athlete, or use "0")
+bun run src/index.ts athlete get
 
 # Get athlete by ID
-bun run src/index.ts athletes get <id>
+bun run src/index.ts athlete get <id>
 
 # List activities
+bun run src/index.ts activities list
+
+# List activities for specific athlete
 bun run src/index.ts activities list --athlete-id <id>
+
+# List workouts
+bun run src/index.ts workouts list
 
 # Create a workout (safety --force required)
 bun run src/index.ts workouts create --force --file workout.json
 
 # Update athlete settings
-bun run src/index.ts athletes update <id> --name "New Name" --force
+bun run src/index.ts athlete update --name "New Name" --force
+
+# Upload activity (FIT/TCX/GPX file)
+bun run src/index.ts activities upload --file activity.fit --force
 ```
 
 ### Output Modes
@@ -76,6 +85,8 @@ INTERVALS_ICU_TIMEOUT=30000
 ```
 
 The API uses basic authentication: username is "API_KEY", password is your API key.
+
+**Note**: The API is per-athlete. Use "0" as athlete ID to reference the athlete associated with your API key.
 
 ## Project Structure
 
