@@ -88,7 +88,6 @@ async function main(): Promise<void> {
   mapRoutesToCommands(program, schemaIndex, spec, getConfig);
 
   program.parse();
-  process.exit(0);
 }
 
 main().catch((error) => {
