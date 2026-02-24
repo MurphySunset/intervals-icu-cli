@@ -89,6 +89,16 @@ Rule: Primary data to stdout, diagnostics/errors to stderr. Always JSON output f
 Context: stdout for API responses; stderr for logs/warnings. Default minimal output, --full for complete response.
 Example: `activity get 123` outputs JSON to stdout; sync progress goes to stderr.
 
+### CLI - Commander.js Option Syntax
+Rule: Use `<value>` for required options, `[value]` for optional options.
+Context: Commander.js treats `--opt <value>` as required, `--opt [value]` as optional.
+Example: `cmd.option("--newest [value]")` allows `--newest` without a value.
+
+### CLI - Testing Nested Commands
+Rule: Traverse command tree directly rather than parsing help text.
+Context: `program.commands.find(c => c.name() === "ns").commands.find(c => c.name() === "action")`
+Example: Don't test with `program.helpInformation().contains("--flag")` - inspect `(cmd as any).options` directly.
+
 ### Architecture - API Parity
 Rule: CLI commands MUST map directly to API endpoints without abstraction or convenience layers.
 Context: No optional parameters, no defaults beyond what API provides. If API requires a param, CLI requires it.
@@ -146,6 +156,11 @@ Example: `spec.paths["/api/v1/athlete/{id}"].get` exists → index entry `["GET"
 Rule: OpenAPI paths may have embedded params like `{ext}` within segments (e.g., `power-curve{ext}`), not just standalone `{param}` segments.
 Context: Regex must match `{...}` anywhere in a segment, not only when the entire segment is a param.
 Example: `/api/v1/activity/{id}/power-curve{ext}` has params `["id", "ext"]`, not just `["id"]`.
+
+### Architecture - Action Detection Logic
+Rule: GET with resources → `list` if params == resources, `get` if params > resources.
+Context: `/athlete/{id}/activities` (1 param, 1 resource) → list. `/athlete/{id}/wellness/{date}` (2 params, 1 resource) → get.
+Example: `detectAction("GET", ["id"], ["activities"])` returns "list".
 
 ### Build - Bundled Assets
 Rule: Static assets in `src/data/` must be copied to `dist/data/` during build.

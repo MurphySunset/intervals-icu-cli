@@ -1,6 +1,7 @@
 # Integration Plan: Intervals.icu CLI
 
 ## Current State
+- **Phase 5b COMPLETE**: Command Registration (mapping.ts)
 - **Phase 5a COMPLETE**: Core Utilities (mapping.ts)
 - **Phase 4 COMPLETE**: Schema Sync (OpenAPI 3.0.1)
 - **Phase 3 COMPLETE**: API Client
@@ -221,7 +222,7 @@ Pure functions with no Commander dependency.
 | Function | Purpose |
 |----------|---------|
 | `parsePath(path)` | Extract `{namespace, resources, params}` from OpenAPI path |
-| `detectAction(method, params)` | HTTP method + has params → `get/list/create/update/delete` |
+| `detectAction(method, params, resources?)` | HTTP method + params + resources → `get/list/create/update/delete` |
 | `buildPath(template, args)` | Replace `{param}` placeholders with values |
 | `pickFields(obj, fields[])` | Filter output fields (supports dot notation) |
 
@@ -233,13 +234,20 @@ Pure functions with no Commander dependency.
 ```
 
 **HTTP → Action mapping**:
-| HTTP | Has path params | Action |
-|------|-----------------|--------|
-| GET | Yes | `get` |
-| GET | No | `list` |
-| POST | No | `create` |
-| PUT/PATCH | Yes | `update` |
-| DELETE | Yes | `delete` |
+| HTTP | Params | Resources | Action |
+|------|--------|-----------|--------|
+| GET | 0 | N/A | `list` |
+| GET | >0 | None | `get` |
+| GET | >0 | Present | `list` (if params == resources) or `get` (if params > resources) |
+| POST | Any | Any | `create` |
+| PUT/PATCH | Any | Any | `update` |
+| DELETE | Any | Any | `delete` |
+
+**Examples**:
+- `/api/v1/athlete/{id}` GET → params: ["id"], resources: [] → `get`
+- `/api/v1/athlete/{id}/activities` GET → params: ["id"], resources: ["activities"] → `list`
+- `/api/v1/athlete/{id}/wellness/{date}` GET → params: ["id", "date"], resources: ["wellness"] → `get`
+- `/api/v1/athlete/{id}/workouts/{workoutId}` GET → params: ["id", "workoutId"], resources: ["workouts"] → `get` |
 
 **Test coverage**: 39 tests, 100% pass rate. 98.88% line coverage.
 
@@ -252,7 +260,9 @@ Commander.js hierarchy creation.
 | Function | Purpose |
 |----------|---------|
 | `mapRoutesToCommands(program, schemaIndex, spec)` | Main entry - iterates paths, creates command hierarchy |
-| `registerCommand(program, pathInfo, method, op)` | Register single command with positional args and flags |
+| `registerCommand(program, pathInfo, method, op, cache)` | Register single command with positional args and flags |
+| `getCommandPath(pathInfo, action)` | Build command path array for hierarchy |
+| `getOrCreateCommand(program, cmdPath, cache)` | Get or create nested commands with caching |
 
 **Command structure**:
 ```
@@ -293,7 +303,7 @@ program
 - `--full` - Full response for update/delete
 - `--file <path>` - JSON payload from file
 
-**Test coverage**: Command hierarchy, argument registration, option registration.
+**Test coverage**: 61 tests, 100% pass rate. Overall: 144 tests, 100% pass rate.
 
 ---
 
@@ -375,10 +385,10 @@ Interactive config setup:
 - Test coverage > 80%
 
 ### 7.2 Test Files
-- `config.test.ts` - Config loading, priority order
-- `client.test.ts` - API client, auth, retries
-- `schema.test.ts` - Schema sync, index generation
-- `mapping.test.ts` - Core utilities (5a), command registration (5b), execution (5c)
+- `config.test.ts` - Config loading, priority order (17 tests)
+- `client.test.ts` - API client, auth, retries (33 tests)
+- `schema.test.ts` - Schema sync, index generation (33 tests)
+- `mapping.test.ts` - Core utilities (5a), command registration (5b) (61 tests) |
 
 ---
 
