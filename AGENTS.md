@@ -132,10 +132,20 @@ Rule: Prefer mocking errors directly over `vi.useFakeTimers()` for async code.
 Context: Fake timers with async operations cause hangs/timeout issues in bun test runner.
 Example: For timeout test, mock fetch to reject with AbortError directly.
 
+### Testing - Data-Driven Test Design
+Rule: Analyze all schema endpoints before implementing path parsing logic.
+Context: The 114 API paths contain patterns (embedded params, format suffixes) that edge cases must cover.
+Example: Run `cat schema.json | jq '.paths | keys[]'` to enumerate all patterns before coding.
+
 ### Architecture - OpenAPI Index Format
 Rule: Schema index is `Record<path, method[]>` extracted from `spec.paths[path].{get,post,put,patch,delete}`.
 Context: Intervals.icu uses OpenAPI 3.0.1, not WordPress REST API. Methods are keys under each path, not a `methods` array.
 Example: `spec.paths["/api/v1/athlete/{id}"].get` exists → index entry `["GET"]`
+
+### Architecture - Path Parameter Patterns
+Rule: OpenAPI paths may have embedded params like `{ext}` within segments (e.g., `power-curve{ext}`), not just standalone `{param}` segments.
+Context: Regex must match `{...}` anywhere in a segment, not only when the entire segment is a param.
+Example: `/api/v1/activity/{id}/power-curve{ext}` has params `["id", "ext"]`, not just `["id"]`.
 
 ### Build - Bundled Assets
 Rule: Static assets in `src/data/` must be copied to `dist/data/` during build.

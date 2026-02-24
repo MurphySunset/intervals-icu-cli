@@ -1,6 +1,7 @@
 # Integration Plan: Intervals.icu CLI
 
 ## Current State
+- **Phase 5a COMPLETE**: Core Utilities (mapping.ts)
 - **Phase 4 COMPLETE**: Schema Sync (OpenAPI 3.0.1)
 - **Phase 3 COMPLETE**: API Client
 - **Phase 2 COMPLETE**: Configuration module
@@ -213,7 +214,7 @@ interface OpenAPISpec {
 
 **Philosophy**: 1:1 mapping with API. No convenience layers, no include flags, no defaults beyond what API provides.
 
-### 5a: Core Utilities (`src/api/mapping.ts`)
+### 5a: Core Utilities (`src/api/mapping.ts`) - [x] COMPLETE
 
 Pure functions with no Commander dependency.
 
@@ -240,7 +241,7 @@ Pure functions with no Commander dependency.
 | PUT/PATCH | Yes | `update` |
 | DELETE | Yes | `delete` |
 
-**Test coverage**: Path parsing, action detection, field picking, path building.
+**Test coverage**: 39 tests, 100% pass rate. 98.88% line coverage.
 
 ---
 
@@ -473,7 +474,7 @@ program.version("1.0.0")
 1. [x] **Phase 1-2**: Foundation & config
 2. [x] **Phase 3**: API client
 3. [x] **Phase 4**: Schema sync (fetch OpenAPI spec)
-4. **Phase 5a**: Core utilities (parsePath, detectAction, pickFields, buildPath)
+4. [x] **Phase 5a**: Core utilities (parsePath, detectAction, pickFields, buildPath)
 5. **Phase 5b**: Command registration (mapRoutesToCommands hierarchy)
 6. **Phase 5c**: Command execution (action handlers, output processing)
 7. **Phase 6**: Entry point & static commands
