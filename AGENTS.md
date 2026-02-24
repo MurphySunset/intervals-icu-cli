@@ -39,7 +39,7 @@
 
 ## Exit Codes
 - `0`: Success
-- `1`: API error / generic failure
+- `1`: API error / generic failure / config file error (not found or invalid JSON)
 - `2`: Invalid usage (missing required args)
 - `3`: Timeout / network error
 - `4`: Missing configuration
@@ -103,12 +103,23 @@ Example: `activities list --athlete-id 123 --oldest 2024-01-01 --newest 2024-12-
 Rule: Preserve intervals.icu's native error format; do not mirror WordPress error structure.
 Context: API returns its own error codes and messages. Output them as-is.
 
+### API - Auth Format
+Rule: Intervals.icu Basic auth uses literal "API_KEY" as username, actual API key as password.
+Context: Authorization header format: `Basic base64("API_KEY:" + actualApiKey)`. Not `username:password`.
+Example: If API key is "abc123", header is `Basic QVBJX0tFWTphYmMxMjM=`
+
+### Config - Priority Order
+Rule: Configuration priority: Flag (--config) > Env vars > Global config > Local .env.
+Context: --config flag overrides everything; env vars are checked only if not from local .env; global config fallback; .env lowest priority.
+Example: `INTERVALS_ICU_API_KEY=env-value intervals-icu -c custom.json` uses custom.json value.
+
+### Infra - WSL/Windows Path Resolution
+Rule: Config file paths must check both $HOME and $USERPROFILE on WSL/Windows systems.
+Context: WSL maps Windows paths differently; config.json exists in USERPROFILE on Windows, HOME on Linux/WSL.
+Example: Check both `~/.config/intervals-icu-cli/config.json` and `$USERPROFILE/.config/intervals-icu-cli/config.json`.
+
 ## Notes
 - **API Docs**: https://intervals.icu/api-docs.html
 - **OpenAPI Spec**: https://intervals.icu/api/v1/docs
-- **Configuration Precedence**:
-    1. Environment variables (highest priority)
-    2. Global config file (~/.config/intervals-icu-cli/config.json)
-    3. Local .env file
 - **CRITICAL**: Always use `--force` for write operations (create, update, delete).
 - **Pris en main**: Always read `@README.md` first.
