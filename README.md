@@ -29,7 +29,7 @@ intervals-icu config
 
 ## Usage
 
-⚠️ **IMPORTANT**: Use `bun run src/index.ts` for development (connects to staging via `.env`). The global command `intervals-icu` is for production.
+⚠️ **IMPORTANT**: Use `bun run src/index.ts` for development. The global command `intervals-icu` points to the same API - no separate staging environment.
 
 ### Local (with Bun)
 
@@ -71,10 +71,11 @@ Configuration priority order:
 ### Environment Variables
 
 ```env
-INTERVALS_ICU_EMAIL=your@email.com
 INTERVALS_ICU_API_KEY=your_api_key
 INTERVALS_ICU_TIMEOUT=30000
 ```
+
+The API uses basic authentication: username is "API_KEY", password is your API key.
 
 ## Project Structure
 

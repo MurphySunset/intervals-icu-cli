@@ -43,7 +43,9 @@
 ## Notes
 - **API Docs**: https://intervals.icu/api-docs.html
 - **OpenAPI Spec**: https://intervals.icu/api/v1/docs
-- **Dev Environment**:
-    - Use staging defined in `.env` for development.
-    - **CRITICAL**: Never make real write operations to production without explicit confirmation.
+- **Configuration Precedence**:
+    1. Environment variables (highest priority)
+    2. Global config file (~/.config/intervals-icu-cli/config.json)
+    3. Local .env file
+- **CRITICAL**: Always use `--force` for write operations (create, update, delete).
 - **Pris en main**: Always read `@README.md` first.
