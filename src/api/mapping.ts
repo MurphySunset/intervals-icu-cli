@@ -172,14 +172,18 @@ export function pickFields(obj: any, fields: string[]): any {
   return result;
 }
 
+function toCamelCase(str: string): string {
+  return str.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+}
+
 export function extractQueryParams(options: any, operation: OpenAPIOperation): Record<string, any> {
   const queryParams = operation.parameters?.filter(p => p.in === "query") || [];
   const result: Record<string, any> = {};
 
   for (const param of queryParams) {
-    const flagName = param.name.replace(/_/g, "-");
-    if (options[flagName] !== undefined) {
-      result[param.name] = options[flagName];
+    const optionKey = toCamelCase(param.name);
+    if (options[optionKey] !== undefined) {
+      result[param.name] = options[optionKey];
     }
   }
 
@@ -341,9 +345,11 @@ function registerCommand(
   for (const param of queryParams) {
     const flagName = param.name.replace(/_/g, "-");
     const flagDesc = param.description || `${param.name} query parameter`;
-    const required = param.required || false;
+    const isBoolean = param.schema?.type === "boolean";
     
-    if (required) {
+    if (isBoolean) {
+      command.option(`--${flagName}`, flagDesc, false);
+    } else if (param.required) {
       command.requiredOption(`--${flagName} <value>`, flagDesc);
     } else {
       command.option(`--${flagName} [value]`, flagDesc);

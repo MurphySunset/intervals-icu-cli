@@ -187,13 +187,32 @@ export class ApiClient {
       const success = response.status >= 200 && response.status < 300;
       const duration = `${Date.now() - start}ms`;
 
+      let error = undefined;
+      if (!success) {
+        let errorCode = responseData.code || "api_error";
+        let errorMessage = responseData.message || "Unknown API Error";
+
+        if (typeof responseData === "string") {
+          errorMessage = responseData;
+        } else if (responseData.error) {
+          errorMessage = typeof responseData.error === "string" ? responseData.error : responseData.error.message || errorMessage;
+          errorCode = responseData.error.code || errorCode;
+        } else if (responseData.errors) {
+          errorMessage = Array.isArray(responseData.errors) ? responseData.errors.join(", ") : JSON.stringify(responseData.errors);
+        } else if (responseData.detail) {
+          errorMessage = responseData.detail;
+        }
+
+        error = {
+          code: errorCode,
+          message: errorMessage,
+        };
+      }
+
       return {
         success,
         data: success ? responseData : undefined,
-        error: !success ? {
-          code: responseData.code || "api_error",
-          message: responseData.message || "Unknown API Error",
-        } : undefined,
+        error,
         meta: { status: response.status, duration, total: responseData.total, pages: responseData.pages },
       };
     } catch (error) {

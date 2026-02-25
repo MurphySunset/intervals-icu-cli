@@ -695,8 +695,8 @@ describe("extractQueryParams", () => {
     expect(result).toEqual({ oldest: "2024-01-01", newest: "2024-12-31", limit: "100" });
   });
 
-  test("converts dashes to underscores in param names", () => {
-    const options = { "route-id": "123", oldest: "2024-01-01" };
+  test("converts snake_case to camelCase in param names", () => {
+    const options = { routeId: "123", oldest: "2024-01-01" };
     const operation: OpenAPIOperation = {
       parameters: [
         { name: "oldest", in: "query", required: true },
@@ -739,6 +739,24 @@ describe("extractQueryParams", () => {
     };
     const result = extractQueryParams(options, operation);
     expect(result).toEqual({});
+  });
+
+  test("extracts boolean query param as boolean", () => {
+    const options = { upsertOnUid: true };
+    const operation: OpenAPIOperation = {
+      parameters: [{ name: "upsertOnUid", in: "query", required: true, schema: { type: "boolean" } }],
+    };
+    const result = extractQueryParams(options, operation);
+    expect(result).toEqual({ upsertOnUid: true });
+  });
+
+  test("extracts boolean query param as false", () => {
+    const options = { upsertOnUid: false };
+    const operation: OpenAPIOperation = {
+      parameters: [{ name: "upsertOnUid", in: "query", required: true, schema: { type: "boolean" } }],
+    };
+    const result = extractQueryParams(options, operation);
+    expect(result).toEqual({ upsertOnUid: false });
   });
 });
 
