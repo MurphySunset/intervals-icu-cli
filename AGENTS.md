@@ -203,6 +203,10 @@ Rule: When assigning Node's `fs` module to a custom `FileSystem` interface, use 
 Context: Node's fs signatures are more complex than simplified test interfaces. Direct assignment causes TS2322 errors.
 Example: `let fileSystem: FileSystem = fs as unknown as FileSystem;`
 
+### Build - Release Process
+Rule: Tag and push to trigger release: `git tag v0.1.4 && git push origin v0.1.4`
+Context: Tags `v*` trigger `.github/workflows/release.yml` → builds binaries → creates GitHub Release.
+
 ## Notes
 - **API Docs**: https://intervals.icu/api-docs.html
 - **OpenAPI Spec**: https://intervals.icu/api/v1/docs
