@@ -17,19 +17,19 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
-            platform: linux
+            target: linux
             arch: x64
             output: intervals-icu-linux-x64
           - os: macos-latest
-            platform: darwin
+            target: darwin
             arch: x64
             output: intervals-icu-macos-x64
           - os: macos-latest
-            platform: darwin
-            arch: arm64
+            target: darwin
+            arch: aarch64
             output: intervals-icu-macos-arm64
           - os: windows-latest
-            platform: win32
+            target: windows
             arch: x64
             output: intervals-icu-windows-x64.exe
 
@@ -48,7 +48,7 @@ jobs:
         run: bun run build
 
       - name: Build binary
-        run: bun build --compile --target ${{ matrix.platform }}-${{ matrix.arch }} --outfile ${{ matrix.output }} ./src/index.ts
+        run: bun build --compile --target bun-${{ matrix.target }}-${{ matrix.arch }} --outfile ${{ matrix.output }} ./src/index.ts
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
