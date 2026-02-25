@@ -1,6 +1,6 @@
 {
   "name": "intervals-icu-cli",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "Bridge for intervals.icu API - athletic training data management",
   "main": "dist/index.js",
   "bin": {
@@ -8,7 +8,7 @@
   },
   "type": "module",
   "scripts": {
-    "build": "tsc && cp -r src/data dist/",
+    "build": "bun run scripts/build.ts",
     "prepublishOnly": "npm run build",
     "test": "bun test",
     "start": "bun run src/index.ts"
