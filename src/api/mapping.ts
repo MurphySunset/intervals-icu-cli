@@ -1,6 +1,7 @@
 import { Command } from "commander";
 import * as fs from "fs";
 import { ApiClient } from "./client";
+import { getTemplate, listTemplates, Template } from "./templates";
 
 export interface PathInfo {
   namespace: string;
@@ -217,6 +218,93 @@ export function processOutput(data: any, options: any, action: string): any {
   return data;
 }
 
+interface ValidationResult {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+const VALID_CATEGORIES = [
+  "WORKOUT", "RACE_A", "RACE_B", "RACE_C", "NOTE", "PLAN", "HOLIDAY",
+  "SICK", "INJURED", "SET_EFTP", "FITNESS_DAYS", "SEASON_START", "TARGET", "SET_FITNESS"
+];
+
+const VALID_TARGETS = ["AUTO", "POWER", "HR", "PACE"];
+
+const COMMON_TYPES = [
+  "Ride", "VirtualRide", "Run", "VirtualRun", "Swim", "Walk", "Rowing",
+  "Elliptical", "StairStepper", "Hiking", "Canoeing", "Kayaking", "XC Skiing",
+  "Snowshoeing", "Skating", "WeightTraining", "AlpineSkiing", "Snowboard",
+  "EBikeRide", "Wheelchair", "NordicSki", "Kitesurf", "StandUpPaddling",
+  "Workout", "Yoga", "Pilates", "Crossfit", "Training", "Tennis",
+  "AmericanFootball", "Badminton", "Baseball", "Basketball", "Boxing",
+  "Cricket", "Dance", "Fencing", "Golf", "Gymnastics", "Handball",
+  "Hockey", "MartialArts", "Rugby", "Soccer", "Softball", "Squash",
+  "TableTennis", "Volleyball"
+];
+
+export function validateEventPayload(body: any, isDryRun: boolean): ValidationResult {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  if (!body || typeof body !== "object") {
+    errors.push("Payload must be a JSON object");
+    return { valid: false, errors, warnings };
+  }
+
+  if (body.category && !VALID_CATEGORIES.includes(body.category)) {
+    errors.push(`Invalid category: "${body.category}". Valid values: ${VALID_CATEGORIES.join(", ")}`);
+  }
+
+  if (body.target && !VALID_TARGETS.includes(body.target)) {
+    errors.push(`Invalid target: "${body.target}". Valid values: ${VALID_TARGETS.join(", ")}`);
+  }
+
+  if (body.type && !COMMON_TYPES.includes(body.type)) {
+    warnings.push(`Uncommon type: "${body.type}". Common values: ${COMMON_TYPES.slice(0, 10).join(", ")}, ...`);
+  }
+
+  if (body.category === "WORKOUT") {
+    if (!body.type) {
+      errors.push("Missing required field for WORKOUT: type");
+    }
+    if (!body.target) {
+      errors.push("Missing required field for WORKOUT: target");
+    }
+    if (!body.workout_doc) {
+      errors.push("Missing required field for WORKOUT: workout_doc");
+    } else {
+      if (!body.workout_doc.steps || !Array.isArray(body.workout_doc.steps)) {
+        errors.push("workout_doc must contain a 'steps' array");
+      }
+    }
+  }
+
+  if (body.category && body.category.startsWith("RACE")) {
+    if (!body.type) {
+      warnings.push("RACE events typically specify 'type' (Ride, Run, etc.)");
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    warnings
+  };
+}
+
+export function outputTemplate(templateName: string): void {
+  const template = getTemplate(templateName);
+  if (!template) {
+    console.error(`Error: Unknown template "${templateName}"`);
+    console.error(`Available templates: ${listTemplates().join(", ")}`);
+    process.exit(2);
+  }
+
+  console.log(JSON.stringify(template.example, null, 2));
+  process.exit(0);
+}
+
 export function readPayloadFile(filePath: string, fileSystem: typeof fs = fs): any {
   try {
     const content = fileSystem.readFileSync(filePath, "utf-8");
@@ -240,6 +328,10 @@ export function createActionHandler(
     const options = cmd.opts();
     const positionalArgs = args.slice(0, -1);
 
+    if (options.template) {
+      outputTemplate(options.template);
+    }
+
     const pathParams = operation.parameters?.filter(p => p.in === "path") || [];
     const pathArgs: Record<string, string> = {};
     for (let i = 0; i < pathParams.length; i++) {
@@ -254,8 +346,6 @@ export function createActionHandler(
       body = readPayloadFile(options.file);
     }
 
-    const config = getConfig();
-    
     let parent = cmd.parent;
     let dryRun = false;
     let force = false;
@@ -265,6 +355,28 @@ export function createActionHandler(
       if (parentOpts.force !== undefined) force = parentOpts.force;
       parent = parent.parent;
     }
+
+    const isEventsPath = apiPath.includes("/events") && (action === "create" || action === "update");
+    if (isEventsPath && body && dryRun) {
+      const validation = validateEventPayload(body, true);
+      if (validation.errors.length > 0) {
+        console.error("✗ Payload validation failed:");
+        validation.errors.forEach(err => console.error(`  ${err}`));
+        if (validation.warnings.length > 0) {
+          console.error("\nWarnings:");
+          validation.warnings.forEach(warn => console.error(`  ${warn}`));
+        }
+        process.exit(2);
+      } else {
+        console.error("✓ Payload JSON valid");
+        if (validation.warnings.length > 0) {
+          console.error("\nWarnings:");
+          validation.warnings.forEach(warn => console.error(`  ${warn}`));
+        }
+      }
+    }
+
+    const config = getConfig();
     
     const client = new ApiClient(config, {
       dryRun,
@@ -358,6 +470,53 @@ function registerCommand(
   
   if (["create", "update", "delete"].includes(action)) {
     command.option("--file <path>", "Read JSON payload from file");
+  }
+  
+  if (action === "create") {
+    const isEventsCreate = pathInfo.resources.includes("events");
+    if (isEventsCreate) {
+      command.option("--template <name>", `Generate JSON template (${listTemplates().join(", ")})`);
+      command.addHelpText("after", "\n" +
+        "Workflow:\n" +
+        "  1. Generate template: --template <name>\n" +
+        "  2. Edit the JSON with your data\n" +
+        "  3. Validate: --file <path> --dry-run\n" +
+        "  4. Create: --file <path> --force\n\n" +
+        "Example payloads:\n\n" +
+        "WORKOUT (structured):\n" +
+        "{\n" +
+        '  "category": "WORKOUT",\n' +
+        '  "type": "Ride",\n' +
+        '  "target": "HR",\n' +
+        '  "start_date_local": "2026-03-01T08:00:00",\n' +
+        '  "name": "My Workout",\n' +
+        '  "workout_doc": {\n' +
+        '    "athlete_id": "YOUR_ATHLETE_ID",\n' +
+        '    "steps": [\n' +
+        '      { "warmup": true, "duration": 600, "hr": { "units": "hr_zone", "value": 1 } }\n' +
+        '    ]\n' +
+        '  }\n' +
+        "}\n\n" +
+        "NOTE:\n" +
+        "{\n" +
+        '  "category": "NOTE",\n' +
+        '  "start_date_local": "2026-03-01",\n' +
+        '  "name": "Note title",\n' +
+        '  "description": "Note content"\n' +
+        "}\n\n" +
+        "RACE:\n" +
+        "{\n" +
+        '  "category": "RACE_A",\n' +
+        '  "type": "Ride",\n' +
+        '  "start_date_local": "2026-03-01T08:00:00",\n' +
+        '  "name": "Race Name"\n' +
+        "}\n\n" +
+        `Use --template <name> to generate complete examples (${listTemplates().join(", ")}).\n` +
+        `Category values: ${VALID_CATEGORIES.join(", ")}\n` +
+        `Target values: ${VALID_TARGETS.join(", ")}\n` +
+        `Type values: Ride, VirtualRide, Run, VirtualRun, Swim, ...\n`
+      );
+    }
   }
   
   if (["update", "delete"].includes(action)) {

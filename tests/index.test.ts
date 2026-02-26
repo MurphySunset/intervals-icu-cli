@@ -8,7 +8,7 @@ const DIST_PATH = join(process.cwd(), "dist", "index.js");
 describe("CLI entry point", () => {
   test("--version outputs package version", async () => {
     const output = await execCommand(`bun ${DIST_PATH} --version`);
-    expect(output.stdout.trim()).toBe("0.1.1");
+    expect(output.stdout.trim()).toBe("0.1.6");
   });
 
   test("--help outputs help text", async () => {
